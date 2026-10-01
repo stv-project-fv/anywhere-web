@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Estado y Distribución de Flota</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; }
+            .shadow-sm { box-shadow: none !important; }
+        }
+        .tree-line {
+            border-left: 2px dashed #cbd5e1;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen p-4 md:p-6 text-slate-800">
+
+    <div class="max-w-7xl mx-auto space-y-4">
+        
+        <!-- Barra Superior de Acciones -->
+        <div class="flex flex-wrap items-center justify-between gap-3 no-print">
+            <a href="/" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg shadow transition">
+                <i class="fa-solid fa-arrow-left"></i> Volver al Panel
+            </a>
+            <div class="flex items-center gap-2">
+                <button onclick="window.location.reload()" class="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold rounded-lg shadow transition">
+                    <i class="fa-solid fa-rotate"></i> Recargar datos
+                </button>
+                <button onclick="window.print()" class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg shadow transition">
+                    <i class="fa-solid fa-print"></i> Imprimir / Guardar en PDF
+                </button>
+            </div>
+        </div>
+
+        <!-- Tarjeta Principal de Encabezado y KPIs -->
+        <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                <div>
+                    <h1 class="text-2xl font-black text-slate-900 tracking-tight uppercase">Estado y Distribución de Flota</h1>
+                    <p class="text-sm font-medium text-slate-500">Esquema Jerárquico de Disponibilidad, Destino Operativo y Resumen</p>
+                </div>
+
+                <!-- Tarjetas KPI -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                        <div id="kpi-total" class="text-2xl font-black text-slate-800">0</div>
+                        <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Total Flota</div>
+                    </div>
+                    <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                        <div id="kpi-activas" class="text-2xl font-black text-emerald-600">0</div>
+                        <div class="text-[11px] font-bold text-emerald-700 uppercase tracking-wide">Activas</div>
+                    </div>
+                    <div class="bg-rose-50 border border-rose-200 rounded-lg p-3">
+                        <div id="kpi-inactivas" class="text-2xl font-black text-rose-600">0</div>
+                        <div class="text-[11px] font-bold text-rose-700 uppercase tracking-wide">Inactivas</div>
+                    </div>
+                    <div class="bg-sky-50 border border-sky-200 rounded-lg p-3">
+                        <div id="kpi-disp" class="text-2xl font-black text-sky-600">0%</div>
+                        <div class="text-[11px] font-bold text-sky-700 uppercase tracking-wide">Disponibilidad</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filtro de Áreas -->
+            <div class="mt-5 pt-4 border-t border-slate-100 no-print">
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-600">
+                        <i class="fa-solid fa-filter mr-1"></i> Filtrar por Áreas:
+                    </span>
+                    <div class="space-x-2 text-xs">
+                        <button onclick="seleccionarTodasAreas(true)" class="text-sky-600 font-semibold hover:underline">Seleccionar Todas</button>
+                        <span class="text-slate-300">|</span>
+                        <button onclick="seleccionarTodasAreas(false)" class="text-rose-600 font-semibold hover:underline">Deseleccionar Todas</button>
+                    </div>
+                </div>
+                <div class="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-1" id="contenedor-filtros-area">
+                    <!-- Checkboxes generados por JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Contenedor del Diagrama de Árbol -->
+        <div id="arbol-container" class="space-y-3">
+            <!-- Filas dinámicas -->
+        </div>
+
+    </div>
+
+    <script>
+        const rawData = {{ unidades_json | tojson }};
+        const areasDisponibles = {{ areas | tojson }};
+        let areasSeleccionadas = new Set(areasDisponibles);
+
+        // Inicializar Filtros
+        function inicializarFiltros() {
+            const container = document.getElementById('contenedor-filtros-area');
+            container.innerHTML = '';
+
+            areasDisponibles.forEach(area => {
+                const label = document.createElement('label');
+                label.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded-md text-xs font-medium cursor-pointer border border-slate-200 select-none';
+                
+                const check = document.createElement('input');
+                check.type = 'checkbox';
+                check.value = area;
+                check.checked = true;
+                check.className = 'rounded text-sky-600 focus:ring-sky-500 area-checkbox';
+                check.onchange = (e) => {
+                    if (e.target.checked) areasSeleccionadas.add(area);
+                    else areasSeleccionadas.delete(area);
+                    renderizar();
+                };
+
+                label.appendChild(check);
+                label.appendChild(document.createTextNode(area));
+                container.appendChild(label);
+            });
+        }
+
+        function seleccionarTodasAreas(estado) {
+            const checks = document.querySelectorAll('.area-checkbox');
+            areasSeleccionadas.clear();
+            checks.forEach(c => {
+                c.checked = estado;
+                if (estado) areasSeleccionadas.add(c.value);
+            });
+            renderizar();
+        }
+
+        // Renderizado del Árbol y Recálculo de Métricas
+        function renderizar() {
+            // Filtrar datos según las áreas seleccionadas
+            const filtrados = rawData.filter(u => areasSeleccionadas.has(u.ÁREA));
+
+            // Métricas KPI
+            const total = filtrados.length;
+            const activas = filtrados.filter(u => u.ESTADO_GRAS === 'ACTIVA').length;
+            const inactivas = total - activas;
+            const disp = total > 0 ? ((activas / total) * 100).toFixed(1) : 0;
+
+            document.getElementById('kpi-total').textContent = total;
+            document.getElementById('kpi-activas').textContent = activas;
+            document.getElementById('kpi-inactivas').textContent = inactivas;
+            document.getElementById('kpi-disp').textContent = `${disp}%`;
+
+            // Agrupar Jerarquía: Tipo -> Estado (ACTIVA/INACTIVA) -> Área -> Resumen
+            const tree = {};
+            filtrados.forEach(u => {
+                if (!tree[u.TIPO]) tree[u.TIPO] = { total: 0, estados: { 'ACTIVA': {}, 'INACTIVA': {} } };
+                tree[u.TIPO].total++;
+
+                const est = u.ESTADO_GRAS;
+                if (!tree[u.TIPO].estados[est][u.ÁREA]) {
+                    tree[u.TIPO].estados[est][u.ÁREA] = {};
+                }
+
+                // Agrupar por Resumen
+                const res = u.RESUMEN || 'Sin resumen especificado';
+                if (!tree[u.TIPO].estados[est][u.ÁREA][res]) {
+                    tree[u.TIPO].estados[est][u.ÁREA][res] = [];
+                }
+                tree[u.TIPO].estados[est][u.ÁREA][res].push(u.UNIDAD);
+            });
+
+            // Dibujar árbol
+            const container = document.getElementById('arbol-container');
+            container.innerHTML = '';
+
+            if (total === 0) {
+                container.innerHTML = `
+                    <div class="bg-white rounded-xl p-8 text-center text-slate-400 font-medium border border-slate-200">
+                        No hay unidades para las áreas seleccionadas.
+                    </div>`;
+                return;
+            }
+
+            // Ordenar tipos alfabéticamente
+            Object.keys(tree).sort().forEach(tipo => {
+                const tipoData = tree[tipo];
+
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-xl p-4 shadow-sm border border-slate-200 flex flex-col md:flex-row md:items-stretch gap-4';
+
+                // Columna Izquierda: Bloque del Tipo
+                let leftCol = `
+                    <div class="w-full md:w-56 flex-shrink-0 flex items-center">
+                        <div class="flex items-center gap-2 border-2 border-slate-800 rounded-lg p-2 w-full bg-slate-50">
+                            <span class="bg-slate-900 text-white font-black text-sm px-2.5 py-1 rounded">${tipoData.total}</span>
+                            <span class="font-black text-xs text-slate-900 tracking-wide leading-tight uppercase">${tipo}</span>
+                        </div>
+                    </div>
+                `;
+
+                // Columna Derecha: Ramas Activas e Inactivas
+                let rightCol = `<div class="flex-1 space-y-3 justify-center flex flex-col">`;
+
+                ['ACTIVA', 'INACTIVA'].forEach(estadoKey => {
+                    const areasObj = tipoData.estados[estadoKey];
+                    const cantEstado = Object.values(areasObj).reduce((acc, curr) => {
+                        return acc + Object.values(curr).reduce((sum, unids) => sum + unids.length, 0);
+                    }, 0);
+
+                    if (cantEstado > 0) {
+                        const isActiva = estadoKey === 'ACTIVA';
+                        const badgeBg = isActiva ? 'bg-emerald-600' : 'bg-rose-600';
+                        const labelText = isActiva ? 'ACTIVAS' : 'INACTIVAS';
+
+                        rightCol += `
+                            <div class="flex items-start gap-2 text-xs">
+                                <div class="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
+                                    <span class="text-slate-400 font-mono">→</span>
+                                    <span class="px-2 py-0.5 rounded text-white font-black ${badgeBg}">${cantEstado}</span>
+                                    <span class="font-bold ${isActiva ? 'text-emerald-800' : 'text-rose-800'} tracking-wide">${labelText}</span>
+                                </div>
+                                <div class="flex-1 space-y-1.5 pl-2">
+                        `;
+
+                        // Ramas por Área
+                        Object.keys(areasObj).sort().forEach(area => {
+                            const resumenesObj = areasObj[area];
+                            const cantArea = Object.values(resumenesObj).reduce((sum, unids) => sum + unids.length, 0);
+
+                            rightCol += `
+                                <div class="flex flex-wrap items-start gap-2">
+                                    <div class="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-semibold text-slate-700">
+                                        <span class="font-bold text-slate-900">${cantArea}</span> ${area}
+                                    </div>
+                                    <div class="flex flex-col gap-1">
+                            `;
+
+                            // Ramas por RESUMEN
+                            Object.keys(resumenesObj).forEach(resumen => {
+                                const unidades = resumenesObj[resumen];
+                                const resBg = isActiva ? 'bg-emerald-50 text-emerald-900 border-emerald-200' : 'bg-rose-50 text-rose-900 border-rose-200';
+
+                                rightCol += `
+                                    <div class="inline-flex items-center gap-1.5 border px-2 py-0.5 rounded text-[11px] font-medium ${resBg}">
+                                        <span class="font-bold text-slate-700 font-mono">→ [${unidades.length}]</span>
+                                        <span class="font-semibold">${resumen}</span>
+                                        <span class="text-[10px] text-slate-500">(${unidades.join(', ')})</span>
+                                    </div>
+                                `;
+                            });
+
+                            rightCol += `</div></div>`;
+                        });
+
+                        rightCol += `</div></div>`;
+                    }
+                });
+
+                rightCol += `</div>`;
+                card.innerHTML = leftCol + rightCol;
+                container.appendChild(card);
+            });
+        }
+
+        // Ejecutar al cargar
+        document.addEventListener('DOMContentLoaded', () => {
+            inicializarFiltros();
+            renderizar();
+        });
+    </script>
+</body>
+</html>

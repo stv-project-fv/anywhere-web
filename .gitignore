@@ -1,0 +1,32 @@
+# Variables de entorno y secretos
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+env/
+venv/
+.venv/
+ENV/
+
+# Archivos de datos locales runtime (evitar subir datos sensibles generados)
+*.csv
+
+# Logs y Docker
+*.log
+
+# IDEs y sistema
+.idea/
+.vscode/
+.agents/
+.gemini/
+.DS_Store
+Thumbs.db

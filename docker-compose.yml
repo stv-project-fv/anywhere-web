@@ -1,0 +1,16 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: panel_flota_app
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    volumes:
+      # Monta la carpeta local para persistir los archivos CSV locales y reflejar cambios si los hay
+      - ./mi_proyecto/home/MFVProveedores/mysite:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
