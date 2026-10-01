@@ -47,12 +47,13 @@ CONF = {
     "PASSWORD_PANEL": os.getenv("PASSWORD_PANEL", "panel_default"),
     "SECRET_KEY": os.getenv("SECRET_KEY", "super_secret_key_default"),
 
-    # --- IMÁGENES Y ESTÉTICA ---
-    "LOGO_URL": "https://i.ibb.co/chpfBP5X/Logo1.png",
-    "QR_LOGO_URL": "https://i.ibb.co/bhRNpsL/Logo-QR.png",
-    "BANNER_PANEL_URL": "https://i.ibb.co/Fq6mSJgm/Secretar-a-de-Obras-Servicios-P-blicos-Ambiente-y-Planificaci-n-Urbana.png",
-    "BANNER_FICHA_URL": "https://i.ibb.co/Fq6mSJgm/Secretar-a-de-Obras-Servicios-P-blicos-Ambiente-y-Planificaci-n-Urbana.png",
-    "BACKGROUND_URL": "",
+    # --- IMÁGENES Y ESTÉTICA (ARCHIVOS LOCALES) ---
+    "LOGO_URL": os.getenv("LOGO_URL", "/static/Logo1.png"),
+    "QR_LOGO_URL": os.getenv("QR_LOGO_URL", "/static/Logo-QR.png"),
+    "BANNER_PANEL_URL": os.getenv("BANNER_PANEL_URL", "/static/banner-sospapu.png"),
+    "BANNER_FICHA_URL": os.getenv("BANNER_FICHA_URL", "/static/banner-sospapu.png"),
+    "SIN_FOTO_URL": os.getenv("SIN_FOTO_URL", "/static/Sin-dato-de-imagen.png"),
+    "BACKGROUND_URL": os.getenv("BACKGROUND_URL", ""),
 
     "COLOR_PRINCIPAL": "#009B77",
     "COLOR_SECUNDARIO": "#DAA520",
@@ -163,7 +164,7 @@ def render_unit_header(v):
     <div class="unit-validation-card" style="display: flex; align-items: flex-start; gap: 20px;">
         <img src="{v.get('FOTO_URL','')}" class="unit-photo"
              style="width: {img_size}; height: {img_size}; object-fit: cover; border-radius: 8px; flex-shrink: 0;"
-             onerror="this.src='https://via.placeholder.com/160?text=Sin+Foto'">
+             onerror="this.src='/static/Sin-dato-de-imagen.png'">
 
         <div class="unit-details" style="flex-grow: 1;">
             <div style="border-left: 5px solid {CONF['COLOR_PRINCIPAL']}; padding-left: 15px; margin-bottom: 20px;">
@@ -1078,7 +1079,7 @@ def ficha(id_vehiculo):
 
                     <div class="right-column">
                         <div class="photo-box">
-                            <img src="{{{{ v['FOTO_URL'] }}}}" onerror="this.src='https://via.placeholder.com/400x300?text=Sin+Foto'">
+                            <img src="{{{{ v['FOTO_URL'] }}}}" onerror="this.src='/static/Sin-dato-de-imagen.png'">
                         </div>
                         <div class="status-badge {{{{ est_cls }}}}">{{{{ v['ESTADO'] }}}}</div>
                     </div>
@@ -1108,28 +1109,36 @@ def generate_qr(id_vehiculo):
 
     # 3. Intentar incrustar el logo
     try:
-        # Descargar el logo desde la URL reservada para QRs
-        response = requests.get(CONF['QR_LOGO_URL'], stream=True)
-        response.raw.decode_content = True
-        logo_img = Image.open(response.raw).convert("RGBA")
+        qr_logo_val = CONF.get('QR_LOGO_URL', '/static/Logo-QR.png')
+        if qr_logo_val.startswith('http://') or qr_logo_val.startswith('https://'):
+            response = requests.get(qr_logo_val, stream=True)
+            response.raw.decode_content = True
+            logo_img = Image.open(response.raw).convert("RGBA")
+        else:
+            clean_name = os.path.basename(qr_logo_val)
+            static_path = os.path.join(os.path.dirname(__file__), 'static', clean_name)
+            if os.path.exists(static_path):
+                logo_img = Image.open(static_path).convert("RGBA")
+            elif os.path.exists(qr_logo_val):
+                logo_img = Image.open(qr_logo_val).convert("RGBA")
+            else:
+                logo_img = None
 
-       # Calcular tamaño del logo (25% del tamaño total del QR es lo estándar seguro)
-        qr_width, qr_height = qr_img.size
+        if logo_img:
+            # Calcular tamaño del logo (75% ancho con relación achatada)
+            qr_width, qr_height = qr_img.size
+            logo_width = int(qr_width * 0.75)
+            logo_height = int(logo_width * 0.80)
 
-        # --- MODIFICACIÓN AQUÍ ---
-        logo_width = int(qr_width * 0.75)      # Mantenemos el ancho al 50% del QR
-        logo_height = int(logo_width * 0.80)   # <-- AQUÍ: Reducimos la altura (75% del ancho) para achatarlo
+            # Redimensionar el logo con alta calidad
+            logo_img = logo_img.resize((logo_width, logo_height), Image.Resampling.LANCZOS)
 
-        # Redimensionar el logo con alta calidad usando las dos medidas
-        logo_img = logo_img.resize((logo_width, logo_height), Image.Resampling.LANCZOS)
+            # Centrar logo
+            pos_x = (qr_width - logo_width) // 2
+            pos_y = (qr_height - logo_height) // 2
 
-        # Calcular posición para centrarlo (usando el nuevo ancho y alto)
-        pos_x = (qr_width - logo_width) // 2
-        pos_y = (qr_height - logo_height) // 2
-        # -------------------------
-
-        # Pegar el logo sobre el QR (el tercer argumento usa la transparencia del logo como máscara)
-        qr_img.paste(logo_img, (pos_x, pos_y), logo_img)
+            # Pegar el logo sobre el QR
+            qr_img.paste(logo_img, (pos_x, pos_y), logo_img)
 
     except Exception as e:
         print(f"Advertencia: No se pudo cargar el logo en el QR: {e}")
