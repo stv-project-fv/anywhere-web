@@ -2,7 +2,23 @@ import os
 from dotenv import load_dotenv
 
 # Cargar variables de entorno desde el archivo .env si existe
-load_dotenv()
+base_dir = os.path.dirname(os.path.abspath(__file__))
+env_paths = [
+    os.path.join(base_dir, '.env'),
+    os.path.join(base_dir, '..', '.env'),
+    os.path.join(base_dir, '..', '..', '.env'),
+    os.path.join(base_dir, '..', '..', '..', '.env'),
+    '/home/MFVProveedores/mysite/.env',
+    '/home/MFVProveedores/.env'
+]
+loaded = False
+for p in env_paths:
+    if os.path.exists(p):
+        load_dotenv(p, override=True)
+        loaded = True
+        break
+if not loaded:
+    load_dotenv(override=True)
 
 from PIL import Image
 import qrcode
@@ -43,9 +59,9 @@ CONF = {
     "CAMPOS_PRIVADOS":      ['MOTOR', 'CHASIS', 'PATRIMONIO', 'CHOFER', 'LEGAJO', 'DNI'],
 
     # Contraseñas y Seguridad cargadas de variables de entorno (.env)
-    "PASSWORD_ADMIN": os.getenv("PASSWORD_ADMIN", "admin_default"),
-    "PASSWORD_PANEL": os.getenv("PASSWORD_PANEL", "panel_default"),
-    "SECRET_KEY": os.getenv("SECRET_KEY", "super_secret_key_default"),
+    "PASSWORD_ADMIN": os.getenv("PASSWORD_ADMIN", "muni2025"),
+    "PASSWORD_PANEL": os.getenv("PASSWORD_PANEL", "gpa2025"),
+    "SECRET_KEY": os.getenv("SECRET_KEY", "clave_super_zecreta_varela_v13"),
 
     # --- IMÁGENES Y ESTÉTICA (ARCHIVOS LOCALES) ---
     "LOGO_URL": os.getenv("LOGO_URL", "/static/Logo1.png"),
@@ -898,13 +914,19 @@ def operacion_mantenimiento(id_vehiculo):
 def ver_historial(tipo, id_vehiculo):
     # Mapeo de tipos a ARCHIVOS LOCALES (Los mismos nombres que usas al guardar)
     config_historial = {
-        'actividad':    {'archivo': 'historial_actividad.csv',    'titulo': 'HISTORIAL DE ACTIVIDAD',    'icon': '📋'},
+        'ingresos':     {'archivo': 'historial_actividad.csv',    'titulo': 'CONTROL DE INGRESOS',       'icon': '📍'},
+        'actividad':    {'archivo': 'historial_actividad.csv',    'titulo': 'CONTROL DE INGRESOS',       'icon': '📍'},
+        'cronograma':   {'archivo': 'cronograma_preventivo.csv',  'titulo': 'CRONOGRAMA PREVENTIVO',     'icon': '📅'},
+        'preventivos':  {'archivo': 'historial_preventivos.csv',  'titulo': 'CRONOGRAMA PREVENTIVO',     'icon': '📅'},
+        'mantenimiento':{'archivo': 'historial_mantenimiento.csv','titulo': 'HISTORIAL DE REPARACIONES','icon': '🔧'},
+        'reparaciones': {'archivo': 'historial_mantenimiento.csv','titulo': 'HISTORIAL DE REPARACIONES','icon': '🔧'},
+        'imagenes':     {'archivo': 'historial_imagenes.csv',     'titulo': 'IMÁGENES',                  'icon': '🖼️'},
+        'datos':        {'archivo': 'historial_imagenes.csv',     'titulo': 'IMÁGENES',                  'icon': '🖼️'},
         'combustible':  {'archivo': 'historial_combustible.csv',  'titulo': 'HISTORIAL DE COMBUSTIBLE',  'icon': '⛽'},
-        'fluidos':      {'archivo': 'historial_fluidos.csv',      'titulo': 'HISTORIAL DE FLUIDOS',      'icon': '🛢️'},
-        'mantenimiento':{'archivo': 'historial_mantenimiento.csv','titulo': 'HISTORIAL DE MANTENIMIENTO','icon': '🔧'}
+        'fluidos':      {'archivo': 'historial_fluidos.csv',      'titulo': 'HISTORIAL DE FLUIDOS',      'icon': '🛢️'}
     }
 
-    cfg = config_historial.get(tipo)
+    cfg = config_historial.get(tipo.lower())
     if not cfg: return "Tipo de historial no válido"
 
     archivo_local = cfg['archivo']
@@ -963,9 +985,10 @@ def ver_historial(tipo, id_vehiculo):
                             </tbody>
                         </table>
                     {{% else %}}
-                        <div style="padding:40px; text-align:center; color:#999;">
-                            <h3>No hay registros locales aún.</h3>
-                            <p style="font-size:12px; color:#ccc;">Cargue una operación para ver datos aquí.</p>
+                        <div style="padding:50px 20px; text-align:center; color:#777;">
+                            <div style="font-size:48px; margin-bottom:15px; opacity:0.6;">{{{{ icon }}}}</div>
+                            <h3 style="font-size:20px; color:#555; margin-bottom:8px;">Aún no hay datos registrados para esta unidad.</h3>
+                            <p style="font-size:14px; color:#999; margin:0;">No se encontraron registros de {{{{ titulo.lower() }}}} cargados en el sistema.</p>
                         </div>
                     {{% endif %}}
                 </div>
@@ -1060,7 +1083,7 @@ def ficha(id_vehiculo):
                                         <a href="/historial/ingresos/{{{{ v['ID'] }}}}" class="btn-historial"><span>📍</span> CONTROL INGRESOS</a>
                                         <a href="/historial/cronograma/{{{{ v['ID'] }}}}" class="btn-historial"><span>📅</span> CRONOGRAMA PREVENTIVO</a>
                                         <a href="/historial/mantenimiento/{{{{ v['ID'] }}}}" class="btn-historial"><span>🔧</span> HISTORIAL REPARACIONES</a>
-                                        <a href="/historial/datos/{{{{ v['ID'] }}}}" class="btn-historial"><span>🗂️</span> DATOS HISTÓRICOS</a>
+                                        <a href="/historial/imagenes/{{{{ v['ID'] }}}}" class="btn-historial"><span>🖼️</span> IMÁGENES</a>
                                     </div>
                                 </div>
                             </div>
