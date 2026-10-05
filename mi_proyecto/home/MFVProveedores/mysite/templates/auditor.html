@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Auditor Mantenimiento - Cronograma General{% endblock %}
+
+{% block content %}
+<div class="banner banner-panel"></div>
+
+<div class="container">
+    <div class="content-padding">
+        <div class="admin-header">
+            <div>
+                <h1 style="color:var(--primary); margin:0;">🕵️ AUDITOR DE MANTENIMIENTO</h1>
+                <a href="/" style="color:#666; text-decoration:none; font-size:14px;">⬅ Volver al Panel</a>
+            </div>
+        </div>
+
+        <div style="background:#e3f2fd; padding:20px; border-radius:10px; margin-bottom:30px; text-align:center;">
+            <h3 style="margin-top:0; color:var(--primary);">🚀 INICIAR REVISIÓN / SERVICE</h3>
+            <p style="color:#555;">Escanee la llave de la unidad para comenzar la carga del checklist.</p>
+            <form method="POST">
+                <input type="text" name="nfc_service" placeholder="Click aquí y escanee NFC..." class="form-input" style="width:300px; text-align:center;" autofocus autocomplete="off">
+            </form>
+            {% with msgs = get_flashed_messages() %}
+                {% if msgs %}<p style="color:red; margin-top:10px; font-weight:bold;">{{ msgs[0] }}</p>{% endif %}
+            {% endwith %}
+        </div>
+
+        <h3>📅 CRONOGRAMA GENERAL DE PREVENTIVOS</h3>
+        <input type="text" id="filtroCrono" onkeyup="filtrarCrono()" placeholder="🔍 Filtrar por unidad, fecha, tipo..." class="search-bar">
+        <div class="crono-grid" id="gridCrono" style="margin-top:15px;">
+            {% for item in agenda %}
+            <div class="crono-card">
+                <div class="crono-date">{{ item['FECHA_PROGRAMADA'] }}</div>
+                <div style="font-weight:900; font-size:18px;">{{ item['ID'] }}</div>
+                <div style="font-size:12px; color:#555;">{{ item['MARCA'] }} {{ item['MODELO'] }}</div>
+                <hr style="margin:8px 0; border:none; border-top:1px solid #eee;">
+                <div class="crono-type">{{ item['TIPO_MANTENIMIENTO'] }}</div>
+                <div style="color:{{ 'green' if item['ESTADO'] == 'REALIZADO' else 'orange' }}; font-weight:bold; margin-top:4px;">
+                    {{ item['ESTADO'] }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filtrarCrono() {
+    var filter = document.getElementById("filtroCrono").value.toUpperCase();
+    var cards = document.getElementsByClassName("crono-card");
+    for (var i = 0; i < cards.length; i++) {
+        var txt = cards[i].innerText;
+        cards[i].style.display = txt.toUpperCase().indexOf(filter) > -1 ? "" : "none";
+    }
+}
+</script>
+{% endblock %}

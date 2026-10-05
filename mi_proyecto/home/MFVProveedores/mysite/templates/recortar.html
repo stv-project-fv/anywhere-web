@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block title %}Recortador PDF - Obras Públicas{% endblock %}
+
+{% block head %}
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="banner banner-panel"></div>
+    <div class="content-padding">
+        <div class="admin-header">
+            <div style="font-size:40px;">✂️</div>
+            <div class="titles">
+                <h1 style="margin:0; font-size:28px; color:var(--primary);">RECORTADOR INTELIGENTE</h1>
+                <h2 style="margin:5px 0 0 0; font-size:14px; color:#666;">MUNICIPALIDAD DE FLORENCIO VARELA</h2>
+            </div>
+            <div style="margin-left:auto;">
+                <a href="/" class="btn-action" style="padding:10px 20px; background:#666; text-decoration:none; color:white; border-radius:4px;">⬅ Volver</a>
+            </div>
+        </div>
+
+        <div class="kiosk-container" style="max-width:100%; border:2px dashed var(--primary); background:#f9f9f9; padding:40px; text-align:center;">
+            <div id="upload-zone">
+                <span style="font-size:50px; display:block; margin-bottom:20px;">📄</span>
+                <h3 style="color:var(--primary);">Seleccione el PDF a procesar</h3>
+                <p style="color:#666; margin-bottom:25px;">El sistema ajustará cada página al contenido, eliminando los márgenes blancos sobrantes.</p>
+
+                <input type="file" id="pdf-upload" accept="application/pdf" class="form-input" style="max-width:400px; margin: 0 auto;">
+                <br><br>
+                <button id="process-btn" class="big-btn btn-green" style="max-width:400px; margin: 0 auto;" disabled>PROCESAR Y OPTIMIZAR PDF</button>
+                <div id="status" style="margin-top:20px; font-weight:bold; color:var(--primary); min-height: 24px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Configuración explícita del Worker de PDF.js
+    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+    const { PDFDocument } = PDFLib;
+    const fileInput = document.getElementById('pdf-upload');
+    const processBtn = document.getElementById('process-btn');
+    const status = document.getElementById('status');
+
+    fileInput.onchange = () => {
+        processBtn.disabled = !fileInput.files.length;
+        status.innerText = fileInput.files.length ? "Archivo listo para procesar." : "";
+    };
+
+    processBtn.onclick = async () => {
+        const file = fileInput.files[0];
+        if (!file) return;
+
+        status.innerText = "⏳ Iniciando proceso...";
+        processBtn.disabled = true;
+
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+
+            // Cargar documento para modificación (pdf-lib)
+            const pdfDoc = await PDFDocument.load(arrayBuffer);
+            const pages = pdfDoc.getPages();
+
+            // Cargar documento para análisis de imagen (pdf.js)
+            const loadingTask = pdfjsLib.getDocument({data: arrayBuffer});
+            const pdfJS = await loadingTask.promise;
+
+            for (let i = 0; i < pages.length; i++) {
+                status.innerText = `✂️ Analizando página ${i + 1} de ${pages.length}...`;
+
+                const pageJS = await pdfJS.getPage(i + 1);
+                const viewport = pageJS.getViewport({ scale: 2.0 });
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                const renderContext = { canvasContext: context, viewport: viewport };
+                await pageJS.render(renderContext).promise;
+
+                const bounds = getBoundingBox(context, canvas.width, canvas.height);
+
+                if (bounds) {
+                    const page = pages[i];
+                    const { width, height } = page.getSize();
+                    const scaleX = width / canvas.width;
+                    const scaleY = height / canvas.height;
+
+                    // Recorte con margen 0
+                    const cropWidth = (bounds.right - bounds.left) * scaleX;
+                    const cropHeight = (bounds.bottom - bounds.top) * scaleY;
+                    const offsetX = (bounds.left * scaleX);
+                    const offsetY = (canvas.height - bounds.bottom) * scaleY;
+
+                    page.setMediaBox(offsetX, offsetY, cropWidth, cropHeight);
+                    page.setCropBox(offsetX, offsetY, cropWidth, cropHeight);
+                }
+            }
+
+            status.innerText = "💾 Generando archivo final...";
+            const pdfBytes = await pdfDoc.save();
+            const nombreArchivo = "Informe de Unidades - {{ fecha_filename }}.pdf";
+
+            download(pdfBytes, nombreArchivo, "application/pdf");
+            status.innerText = "✅ ¡PDF optimizado y descargado!";
+
+        } catch (e) {
+            console.error("Error detallado:", e);
+            status.innerHTML = "<span style='color:red'>❌ Error: " + e.message + "</span>";
+        } finally {
+            processBtn.disabled = false;
+        }
+    };
+
+    function getBoundingBox(ctx, width, height) {
+        const imageData = ctx.getImageData(0, 0, width, height).data;
+        let top = height, bottom = 0, left = width, right = 0;
+        let found = false;
+
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const idx = (y * width + x) * 4;
+                if (imageData[idx] < 250 || imageData[idx+1] < 250 || imageData[idx+2] < 250) {
+                    if (x < left) left = x; if (x > right) right = x;
+                    if (y < top) top = y; if (y > bottom) bottom = y;
+                    found = true;
+                }
+            }
+        }
+        return found ? { top, bottom, left, right } : null;
+    }
+
+    function download(data, filename, type) {
+        const file = new Blob([data], { type: type });
+        const url = URL.createObjectURL(file);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }, 0);
+    }
+</script>
+{% endblock %}

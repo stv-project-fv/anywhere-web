@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Acceso Flota - Municipalidad de Florencio Varela{% endblock %}
+
+{% block content %}
+<div class="login-overlay">
+    <div class="login-box">
+        <img src="{{ CONF.LOGO_URL }}" style="width:80px; margin-bottom:20px;" alt="Logo Municipalidad">
+        <h2 style="color:var(--primary); margin:0 0 20px 0;">PANEL DE FLOTA</h2>
+        <form method="POST">
+            <input type="hidden" name="panel_login" value="1">
+            <input type="password" name="password" placeholder="Contraseña de Acceso" class="form-input" style="margin-bottom:15px; text-align:center;" autofocus required>
+            <button type="submit" class="big-btn btn-green">INGRESAR</button>
+        </form>
+        {% with msgs = get_flashed_messages() %}
+            {% if msgs %}
+                <p style="color:white; margin-top:10px; background:#dc3545; padding:5px; border-radius:4px;">{{ msgs[0] }}</p>
+            {% endif %}
+        {% endwith %}
+    </div>
+</div>
+{% endblock %}

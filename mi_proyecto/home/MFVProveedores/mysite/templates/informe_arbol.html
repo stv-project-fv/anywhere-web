@@ -2,113 +2,195 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estado y Distribución de Flota</title>
+    <title>Informe de Distribución de Flota</title>
+    <link rel="icon" type="image/x-icon" href="/icon-muni.ico">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         @media print {
             .no-print { display: none !important; }
-            body { background: white; }
-            .shadow-sm { box-shadow: none !important; }
+            body { background: white !important; padding: 0 !important; }
+            .shadow-sm, .shadow-md { box-shadow: none !important; }
+            .page-container { max-width: 100% !important; margin: 0 !important; }
+            @page { size: landscape; margin: 8mm; }
         }
-        .tree-line {
-            border-left: 2px dashed #cbd5e1;
+        .arrow-line {
+            color: #94a3b8;
+            font-family: monospace;
+            font-weight: bold;
         }
     </style>
 </head>
-<body class="bg-slate-100 min-h-screen p-4 md:p-6 text-slate-800">
+<body class="bg-slate-100 min-h-screen p-3 md:p-6 text-slate-800 font-sans">
 
-    <div class="max-w-7xl mx-auto space-y-4">
-        
-        <!-- Barra Superior de Acciones -->
-        <div class="flex flex-wrap items-center justify-between gap-3 no-print">
-            <a href="/" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg shadow transition">
-                <i class="fa-solid fa-arrow-left"></i> Volver al Panel
-            </a>
+    <div class="max-w-[1600px] mx-auto space-y-4 page-container">
+
+        <!-- Barra Superior de Botones -->
+        <div class="flex flex-wrap items-center justify-end gap-3 no-print">
             <div class="flex items-center gap-2">
-                <button onclick="window.location.reload()" class="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold rounded-lg shadow transition">
-                    <i class="fa-solid fa-rotate"></i> Recargar datos
+                <button onclick="window.location.reload()" class="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-md shadow transition">
+                    <i class="fa-solid fa-rotate"></i> Recargar
                 </button>
-                <button onclick="window.print()" class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg shadow transition">
+                <button onclick="window.print()" class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-md shadow transition">
                     <i class="fa-solid fa-print"></i> Imprimir / Guardar en PDF
                 </button>
             </div>
         </div>
 
-        <!-- Tarjeta Principal de Encabezado y KPIs -->
+        <!-- Cabecera Principal y Métricas KPI -->
         <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
-            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                <div>
-                    <h1 class="text-2xl font-black text-slate-900 tracking-tight uppercase">Estado y Distribución de Flota</h1>
-                    <p class="text-sm font-medium text-slate-500">Esquema Jerárquico de Disponibilidad, Destino Operativo y Resumen</p>
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div class="flex items-center gap-4">
+                    <img src="/icon-muni.ico" alt="Logo Municipalidad" class="h-12 w-auto object-contain shrink-0">
+                    <div>
+                        <div class="flex items-center gap-3">
+                            <h1 class="text-2xl font-black text-slate-900 tracking-tight uppercase">ESTADO Y DISTRIBUCIÓN DE PARQUE AUTOMOTOR</h1>
+                            <span class="px-3 py-1 bg-slate-900 text-white text-xs font-black rounded-lg shadow-sm tracking-wide">
+                                <i class="fa-regular fa-calendar-days mr-1"></i> {{ fecha_hoy }}
+                            </span>
+                        </div>
+                        <div class="flex items-center gap-2 mt-1">
+                            <p class="text-xs font-semibold text-slate-500">Secretaría de Obras, Servicios Públicos, Ambiente y Planificación Urbana</p>
+                            <span class="text-slate-300">•</span>
+                            <p class="text-[11px] font-medium text-slate-400">
+                                <i class="fa-solid fa-clock-rotate-left mr-0.5 text-slate-400"></i> Última actualización: <span class="font-bold text-slate-600">{{ ultima_actualizacion }}</span>
+                            </p>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Tarjetas KPI -->
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                        <div id="kpi-total" class="text-2xl font-black text-slate-800">0</div>
-                        <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Total Flota</div>
+                <!-- Cuadros KPI -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center min-w-[340px]">
+                    <div class="bg-white border border-slate-300 rounded-lg py-2 px-3 shadow-sm">
+                        <div id="kpi-total" class="text-2xl font-black text-slate-900 leading-none">0</div>
+                        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-1">TOTAL FLOTA</div>
                     </div>
-                    <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-                        <div id="kpi-activas" class="text-2xl font-black text-emerald-600">0</div>
-                        <div class="text-[11px] font-bold text-emerald-700 uppercase tracking-wide">Activas</div>
+                    <div class="bg-white border border-emerald-300 rounded-lg py-2 px-3 shadow-sm">
+                        <div id="kpi-activas" class="text-2xl font-black text-emerald-600 leading-none">0</div>
+                        <div class="text-[10px] font-bold text-emerald-700 uppercase tracking-wider mt-1">ACTIVAS</div>
                     </div>
-                    <div class="bg-rose-50 border border-rose-200 rounded-lg p-3">
-                        <div id="kpi-inactivas" class="text-2xl font-black text-rose-600">0</div>
-                        <div class="text-[11px] font-bold text-rose-700 uppercase tracking-wide">Inactivas</div>
+                    <div class="bg-white border border-rose-300 rounded-lg py-2 px-3 shadow-sm">
+                        <div id="kpi-inactivas" class="text-2xl font-black text-rose-600 leading-none">0</div>
+                        <div class="text-[10px] font-bold text-rose-700 uppercase tracking-wider mt-1">INACTIVAS</div>
                     </div>
-                    <div class="bg-sky-50 border border-sky-200 rounded-lg p-3">
-                        <div id="kpi-disp" class="text-2xl font-black text-sky-600">0%</div>
-                        <div class="text-[11px] font-bold text-sky-700 uppercase tracking-wide">Disponibilidad</div>
+                    <div class="bg-white border border-sky-300 rounded-lg py-2 px-3 shadow-sm">
+                        <div id="kpi-disp" class="text-2xl font-black text-sky-600 leading-none">0%</div>
+                        <div class="text-[10px] font-bold text-sky-700 uppercase tracking-wider mt-1">DISPONIBILIDAD</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Filtro de Áreas -->
-            <div class="mt-5 pt-4 border-t border-slate-100 no-print">
-                <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
-                    <span class="text-xs font-bold uppercase tracking-wider text-slate-600">
-                        <i class="fa-solid fa-filter mr-1"></i> Filtrar por Áreas:
-                    </span>
-                    <div class="space-x-2 text-xs">
-                        <button onclick="seleccionarTodasAreas(true)" class="text-sky-600 font-semibold hover:underline">Seleccionar Todas</button>
-                        <span class="text-slate-300">|</span>
-                        <button onclick="seleccionarTodasAreas(false)" class="text-rose-600 font-semibold hover:underline">Deseleccionar Todas</button>
+            <!-- Panel de Filtros y Controles -->
+            <div class="mt-4 pt-4 border-t border-slate-100 space-y-4 no-print">
+
+                <!-- Barra de Controles Rápidos -->
+                <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button onclick="filtrarSSPP()" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg shadow-sm transition transform active:scale-95">
+                            Solo Áreas SSPP
+                        </button>
+
+                        <div class="flex items-center gap-1.5 pl-2 border-l border-slate-300">
+                            <span class="text-xs font-bold text-slate-700 uppercase">Origen:</span>
+                            <select id="filtro-contratados" onchange="renderizar()" class="bg-white border border-slate-300 text-slate-700 text-xs font-bold rounded-lg px-2.5 py-1.5 focus:ring-sky-500">
+                                <option value="TODAS">Todas (Propias + Contratadas)</option>
+                                <option value="PROPIAS">Solo Propias</option>
+                                <option value="CONTRATADAS">Solo Contratadas</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-xs font-bold text-slate-700 uppercase">Ordenar por:</span>
+                        <select id="filtro-orden" onchange="renderizar()" class="bg-white border border-slate-300 text-slate-700 text-xs font-bold rounded-lg px-2.5 py-1.5 focus:ring-sky-500">
+                            <option value="el_nino">Plan El Niño (Maquinarias primero)</option>
+                            <option value="alfabetico">Alfabético A-Z</option>
+                        </select>
                     </div>
                 </div>
-                <div class="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-1" id="contenedor-filtros-area">
-                    <!-- Checkboxes generados por JS -->
+
+                <!-- 1. Filtro por Tipos de Unidad -->
+                <div>
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                        <span class="text-xs font-bold uppercase tracking-wider text-slate-700">Filtrar por Tipos:</span>
+                        <div class="space-x-3 text-xs">
+                            <button onclick="toggleTodosTipos(true)" class="text-sky-600 font-bold hover:underline">Todos</button>
+                            <span class="text-slate-300 font-bold">|</span>
+                            <button onclick="toggleTodosTipos(false)" class="text-rose-600 font-bold hover:underline">Ninguno</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1.5 bg-slate-50 rounded-lg border border-slate-200" id="contenedor-filtros-tipo"></div>
                 </div>
+
+                <!-- 2. Filtro por Áreas -->
+                <div>
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                        <span class="text-xs font-bold uppercase tracking-wider text-slate-700">Filtrar por Áreas:</span>
+                        <div class="space-x-3 text-xs">
+                            <button onclick="toggleTodasAreas(true)" class="text-sky-600 font-bold hover:underline">Todas</button>
+                            <span class="text-slate-300 font-bold">|</span>
+                            <button onclick="toggleTodasAreas(false)" class="text-rose-600 font-bold hover:underline">Ningunas</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1.5 bg-slate-50 rounded-lg border border-slate-200" id="contenedor-filtros-area"></div>
+                </div>
+
             </div>
         </div>
 
         <!-- Contenedor del Diagrama de Árbol -->
         <div id="arbol-container" class="space-y-3">
-            <!-- Filas dinámicas -->
+            <!-- Se llena dinámicamente con JavaScript -->
         </div>
 
     </div>
 
     <script>
-        const rawData = {{ unidades_json | tojson }};
-        const areasDisponibles = {{ areas | tojson }};
+        const rawData = {{ rawData_json|safe }};
+        const areasDisponibles = {{ areas_json|safe }};
+        const tiposDisponibles = {{ tipos_json|safe }};
+
+        const termsSSPP = ['ALUMBRADO', 'HIGIENE URBANA', 'EQUIPOS VIALES', 'CEMENTERIO', 'ESPACIOS VERDES', 'ALLAN', 'BOSQUES'];
+        const ordenElNino = ["EXCAVADORA", "RETROEXCAVADORA", "PALA CARGADORA", "MINICARGADORA", "CAMION VOLCADOR", "CAMIÓN VOLCADOR", "CAMION TRACTOR", "CAMIÓN TRACTOR", "TRACTOR", "CAMION HIDROELEVADOR", "CAMIÓN HIDROELEVADOR", "CAMIONETA", "MOTONIVELADORA"];
+
         let areasSeleccionadas = new Set(areasDisponibles);
+        let tiposSeleccionados = new Set(tiposDisponibles);
 
-        // Inicializar Filtros
         function inicializarFiltros() {
-            const container = document.getElementById('contenedor-filtros-area');
-            container.innerHTML = '';
+            const contTipo = document.getElementById('contenedor-filtros-tipo');
+            contTipo.innerHTML = '';
+            tiposDisponibles.forEach(tipo => {
+                const label = document.createElement('label');
+                label.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-slate-100 rounded text-xs font-semibold cursor-pointer border border-slate-200 select-none transition';
 
+                const check = document.createElement('input');
+                check.type = 'checkbox';
+                check.value = tipo;
+                check.checked = true;
+                check.className = 'rounded text-slate-800 focus:ring-slate-500 tipo-checkbox cursor-pointer';
+                check.onchange = (e) => {
+                    if (e.target.checked) tiposSeleccionados.add(tipo);
+                    else tiposSeleccionados.delete(tipo);
+                    renderizar();
+                };
+
+                label.appendChild(check);
+                label.appendChild(document.createTextNode(tipo));
+                contTipo.appendChild(label);
+            });
+
+            const contArea = document.getElementById('contenedor-filtros-area');
+            contArea.innerHTML = '';
             areasDisponibles.forEach(area => {
                 const label = document.createElement('label');
-                label.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded-md text-xs font-medium cursor-pointer border border-slate-200 select-none';
-                
+                label.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-slate-100 rounded text-xs font-semibold cursor-pointer border border-slate-200 select-none transition';
+
                 const check = document.createElement('input');
                 check.type = 'checkbox';
                 check.value = area;
                 check.checked = true;
-                check.className = 'rounded text-sky-600 focus:ring-sky-500 area-checkbox';
+                check.className = 'rounded text-sky-600 focus:ring-sky-500 area-checkbox cursor-pointer';
                 check.onchange = (e) => {
                     if (e.target.checked) areasSeleccionadas.add(area);
                     else areasSeleccionadas.delete(area);
@@ -117,28 +199,59 @@
 
                 label.appendChild(check);
                 label.appendChild(document.createTextNode(area));
-                container.appendChild(label);
+                contArea.appendChild(label);
             });
         }
 
-        function seleccionarTodasAreas(estado) {
-            const checks = document.querySelectorAll('.area-checkbox');
-            areasSeleccionadas.clear();
+        function toggleTodosTipos(s) {
+            const checks = document.querySelectorAll('.tipo-checkbox');
+            tiposSeleccionados.clear();
             checks.forEach(c => {
-                c.checked = estado;
-                if (estado) areasSeleccionadas.add(c.value);
+                c.checked = s;
+                if (s) tiposSeleccionados.add(c.value);
             });
             renderizar();
         }
 
-        // Renderizado del Árbol y Recálculo de Métricas
-        function renderizar() {
-            // Filtrar datos según las áreas seleccionadas
-            const filtrados = rawData.filter(u => areasSeleccionadas.has(u.ÁREA));
+        function toggleTodasAreas(s) {
+            const checks = document.querySelectorAll('.area-checkbox');
+            areasSeleccionadas.clear();
+            checks.forEach(c => {
+                c.checked = s;
+                if (s) areasSeleccionadas.add(c.value);
+            });
+            renderizar();
+        }
 
-            // Métricas KPI
+        function filtrarSSPP() {
+            areasSeleccionadas.clear();
+            const checks = document.querySelectorAll('.area-checkbox');
+            checks.forEach(c => {
+                const valUpper = c.value.toUpperCase();
+                const match = termsSSPP.some(t => valUpper.includes(t));
+                c.checked = match;
+                if (match) areasSeleccionadas.add(c.value);
+            });
+            renderizar();
+        }
+
+        function renderizar() {
+            const elOrigen = document.getElementById('filtro-contratados');
+            const modoOrigen = elOrigen ? elOrigen.value : 'TODAS';
+            const elOrden = document.getElementById('filtro-orden');
+            const modoOrden = elOrden ? elOrden.value : 'el_nino';
+
+            const filtrados = rawData.filter(u => {
+                const cTipo = tiposSeleccionados.has(u.TIPO);
+                const cArea = areasSeleccionadas.has(u.AREA);
+                let cOrig = true;
+                if (modoOrigen === 'PROPIAS') cOrig = !u.CONTRATADO;
+                else if (modoOrigen === 'CONTRATADAS') cOrig = u.CONTRATADO;
+                return cTipo && cArea && cOrig;
+            });
+
             const total = filtrados.length;
-            const activas = filtrados.filter(u => u.ESTADO_GRAS === 'ACTIVA').length;
+            const activas = filtrados.filter(u => u.ESTADO_CAT === 'ACTIVAS').length;
             const inactivas = total - activas;
             const disp = total > 0 ? ((activas / total) * 100).toFixed(1) : 0;
 
@@ -147,101 +260,133 @@
             document.getElementById('kpi-inactivas').textContent = inactivas;
             document.getElementById('kpi-disp').textContent = `${disp}%`;
 
-            // Agrupar Jerarquía: Tipo -> Estado (ACTIVA/INACTIVA) -> Área -> Resumen
-            const tree = {};
-            filtrados.forEach(u => {
-                if (!tree[u.TIPO]) tree[u.TIPO] = { total: 0, estados: { 'ACTIVA': {}, 'INACTIVA': {} } };
-                tree[u.TIPO].total++;
-
-                const est = u.ESTADO_GRAS;
-                if (!tree[u.TIPO].estados[est][u.ÁREA]) {
-                    tree[u.TIPO].estados[est][u.ÁREA] = {};
-                }
-
-                // Agrupar por Resumen
-                const res = u.RESUMEN || 'Sin resumen especificado';
-                if (!tree[u.TIPO].estados[est][u.ÁREA][res]) {
-                    tree[u.TIPO].estados[est][u.ÁREA][res] = [];
-                }
-                tree[u.TIPO].estados[est][u.ÁREA][res].push(u.UNIDAD);
-            });
-
-            // Dibujar árbol
             const container = document.getElementById('arbol-container');
             container.innerHTML = '';
 
             if (total === 0) {
-                container.innerHTML = `
-                    <div class="bg-white rounded-xl p-8 text-center text-slate-400 font-medium border border-slate-200">
-                        No hay unidades para las áreas seleccionadas.
-                    </div>`;
+                container.innerHTML = `<div class="bg-white rounded-xl p-10 text-center text-slate-400 font-bold border border-slate-200">No hay unidades que coincidan con los filtros seleccionados.</div>`;
                 return;
             }
 
-            // Ordenar tipos alfabéticamente
-            Object.keys(tree).sort().forEach(tipo => {
+            // Estructura jerárquica unificada: TIPO -> ESTADO -> ÁREA -> RESUMEN
+            const tree = {};
+            filtrados.forEach(u => {
+                if (!tree[u.TIPO]) tree[u.TIPO] = { total: 0, estados: { 'ACTIVAS': {}, 'INACTIVAS': {} } };
+                tree[u.TIPO].total++;
+
+                const est = u.ESTADO_CAT;
+                if (!tree[u.TIPO].estados[est][u.AREA]) {
+                    tree[u.TIPO].estados[est][u.AREA] = {};
+                }
+
+                let resNorm = (u.RESUMEN || 'Sin resumen especificado').trim().replace(/\s+/g, ' ');
+                if (u.PRESTAMO && /^de pr[eé]stamo\s+/i.test(resNorm)) {
+                    resNorm = resNorm.replace(/^de pr[eé]stamo\s+/i, '');
+                }
+                const groupKey = (u.CONTRATADO ? 'CONTRATADO:' : 'PROPIA:') + resNorm;
+                if (!tree[u.TIPO].estados[est][u.AREA][groupKey]) {
+                    tree[u.TIPO].estados[est][u.AREA][groupKey] = [];
+                }
+                tree[u.TIPO].estados[est][u.AREA][groupKey].push(u);
+            });
+
+            let listaTipos = Object.keys(tree);
+            if (modoOrden === 'el_nino') {
+                listaTipos.sort((a, b) => {
+                    const idxA = ordenElNino.findIndex(item => a.includes(item) || item.includes(a));
+                    const idxB = ordenElNino.findIndex(item => b.includes(item) || item.includes(b));
+                    const rankA = idxA !== -1 ? idxA : 999;
+                    const rankB = idxB !== -1 ? idxB : 999;
+                    if (rankA !== rankB) return rankA - rankB;
+                    return a.localeCompare(b);
+                });
+            } else {
+                listaTipos.sort((a, b) => a.localeCompare(b));
+            }
+
+            listaTipos.forEach(tipo => {
                 const tipoData = tree[tipo];
 
                 const card = document.createElement('div');
-                card.className = 'bg-white rounded-xl p-4 shadow-sm border border-slate-200 flex flex-col md:flex-row md:items-stretch gap-4';
+                card.className = 'bg-white rounded-xl p-3 md:p-4 shadow-sm border border-slate-200 flex flex-col md:flex-row md:items-center gap-4';
 
-                // Columna Izquierda: Bloque del Tipo
                 let leftCol = `
-                    <div class="w-full md:w-56 flex-shrink-0 flex items-center">
-                        <div class="flex items-center gap-2 border-2 border-slate-800 rounded-lg p-2 w-full bg-slate-50">
-                            <span class="bg-slate-900 text-white font-black text-sm px-2.5 py-1 rounded">${tipoData.total}</span>
-                            <span class="font-black text-xs text-slate-900 tracking-wide leading-tight uppercase">${tipo}</span>
+                    <div class="w-full md:w-60 flex-shrink-0">
+                        <div class="flex items-center gap-2 border-2 border-slate-900 rounded-lg p-1.5 bg-white shadow-sm">
+                            <span class="bg-slate-900 text-white font-black text-sm px-2.5 py-1 rounded min-w-[28px] text-center">${tipoData.total}</span>
+                            <span class="font-black text-xs text-slate-900 tracking-wide uppercase leading-tight truncate" title="${tipo}">${tipo}</span>
                         </div>
                     </div>
                 `;
 
-                // Columna Derecha: Ramas Activas e Inactivas
-                let rightCol = `<div class="flex-1 space-y-3 justify-center flex flex-col">`;
+                let rightCol = `<div class="flex-1 space-y-3 flex flex-col justify-center">`;
 
-                ['ACTIVA', 'INACTIVA'].forEach(estadoKey => {
+                ['ACTIVAS', 'INACTIVAS'].forEach(estadoKey => {
                     const areasObj = tipoData.estados[estadoKey];
                     const cantEstado = Object.values(areasObj).reduce((acc, curr) => {
                         return acc + Object.values(curr).reduce((sum, unids) => sum + unids.length, 0);
                     }, 0);
 
                     if (cantEstado > 0) {
-                        const isActiva = estadoKey === 'ACTIVA';
+                        const isActiva = estadoKey === 'ACTIVAS';
                         const badgeBg = isActiva ? 'bg-emerald-600' : 'bg-rose-600';
-                        const labelText = isActiva ? 'ACTIVAS' : 'INACTIVAS';
+                        const badgeTextColor = isActiva ? 'text-emerald-800' : 'text-rose-800';
 
                         rightCol += `
-                            <div class="flex items-start gap-2 text-xs">
-                                <div class="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
-                                    <span class="text-slate-400 font-mono">→</span>
-                                    <span class="px-2 py-0.5 rounded text-white font-black ${badgeBg}">${cantEstado}</span>
-                                    <span class="font-bold ${isActiva ? 'text-emerald-800' : 'text-rose-800'} tracking-wide">${labelText}</span>
+                            <div class="flex flex-wrap md:flex-nowrap items-start gap-2 text-xs">
+                                <div class="flex items-center gap-1.5 w-32 flex-shrink-0 mt-0.5">
+                                    <span class="arrow-line">→</span>
+                                    <span class="px-2 py-0.5 rounded text-white font-black ${badgeBg} text-[11px]">${cantEstado}</span>
+                                    <span class="font-black ${badgeTextColor} tracking-wide text-[11px]">${estadoKey}</span>
                                 </div>
-                                <div class="flex-1 space-y-1.5 pl-2">
+                                <div class="flex-1 space-y-2 pl-1">
                         `;
 
-                        // Ramas por Área
                         Object.keys(areasObj).sort().forEach(area => {
                             const resumenesObj = areasObj[area];
                             const cantArea = Object.values(resumenesObj).reduce((sum, unids) => sum + unids.length, 0);
+                            const areaBorder = isActiva ? 'border-emerald-300 bg-emerald-50/60 text-emerald-900' : 'border-rose-300 bg-rose-50/60 text-rose-900';
 
                             rightCol += `
-                                <div class="flex flex-wrap items-start gap-2">
-                                    <div class="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-semibold text-slate-700">
-                                        <span class="font-bold text-slate-900">${cantArea}</span> ${area}
+                                <div class="flex flex-wrap md:flex-nowrap items-start gap-2">
+                                    <div class="flex items-center gap-1.5 border px-2 py-0.5 rounded text-[11px] font-bold ${areaBorder} w-[210px] min-w-[210px] flex-shrink-0 mt-0.5">
+                                        <span class="arrow-line">→</span>
+                                        <span class="font-black">${cantArea}</span>
+                                        <span class="truncate">${area}</span>
                                     </div>
-                                    <div class="flex flex-col gap-1">
+                                    <div class="flex-col gap-1.5 flex-1 min-w-0">
                             `;
 
-                            // Ramas por RESUMEN
-                            Object.keys(resumenesObj).forEach(resumen => {
-                                const unidades = resumenesObj[resumen];
-                                const resBg = isActiva ? 'bg-emerald-50 text-emerald-900 border-emerald-200' : 'bg-rose-50 text-rose-900 border-rose-200';
+                            Object.keys(resumenesObj).sort().forEach(groupKey => {
+                                const itemsUnidad = resumenesObj[groupKey];
+                                const cantGroup = itemsUnidad.length;
+                                const tieneContratados = itemsUnidad.some(i => i.CONTRATADO);
+                                const tienePrestamos = itemsUnidad.some(i => i.PRESTAMO);
+
+                                const resumenDisplay = groupKey.replace(/^(CONTRATADO|PROPIA):/, '');
+
+                                let nombresUnidadesStr = "";
+                                if (tieneContratados) {
+                                    nombresUnidadesStr = cantGroup > 1 ? `${cantGroup} Contratadas` : 'Contratada';
+                                } else {
+                                    nombresUnidadesStr = itemsUnidad.map(i => i.UNIDAD).join(', ');
+                                }
+
+                                const resBoxStyle = isActiva
+                                    ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                                    : 'bg-rose-50 text-rose-900 border-rose-200';
+
+                                let contratadoBadge = tieneContratados ? `<span class="inline-flex items-center gap-1 px-1.5 py-0.2 bg-indigo-100 text-indigo-800 border border-indigo-300 rounded font-bold text-[10px] uppercase">CONTRATADO</span>` : '';
+                                let prestamoBadge = tienePrestamos ? `<span class="inline-flex items-center gap-1 px-1.5 py-0.2 bg-amber-100 text-amber-800 border border-amber-300 rounded font-bold text-[10px] uppercase">DE PRÉSTAMO</span>` : '';
 
                                 rightCol += `
-                                    <div class="inline-flex items-center gap-1.5 border px-2 py-0.5 rounded text-[11px] font-medium ${resBg}">
-                                        <span class="font-bold text-slate-700 font-mono">→ [${unidades.length}]</span>
-                                        <span class="font-semibold">${resumen}</span>
-                                        <span class="text-[10px] text-slate-500">(${unidades.join(', ')})</span>
+                                    <div class="flex items-center flex-wrap md:flex-nowrap gap-1 border px-2 py-0.5 rounded text-[11px] font-medium ${resBoxStyle} w-full">
+                                        <span class="arrow-line">→</span>
+                                        <span class="font-black">${cantGroup}</span>
+                                        ${contratadoBadge}
+                                        ${prestamoBadge}
+                                        <span class="font-bold">${resumenDisplay}</span>
+                                        <span class="text-[10px] text-slate-500 font-semibold">(${nombresUnidadesStr})</span>
                                     </div>
                                 `;
                             });
@@ -259,7 +404,6 @@
             });
         }
 
-        // Ejecutar al cargar
         document.addEventListener('DOMContentLoaded', () => {
             inicializarFiltros();
             renderizar();

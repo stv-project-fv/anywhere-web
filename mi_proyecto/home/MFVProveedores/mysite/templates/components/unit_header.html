@@ -1,0 +1,24 @@
+<div class="unit-validation-card" style="display: flex; align-items: flex-start; gap: 20px;">
+    <img src="{{ v.get('FOTO_URL', '') }}" class="unit-photo"
+         style="width: 160px; height: 160px; object-fit: cover; border-radius: 8px; flex-shrink: 0;"
+         onerror="this.src='/static/Sin-dato-de-imagen.png'">
+
+    <div class="unit-details" style="flex-grow: 1;">
+        <div style="border-left: 5px solid {{ CONF.COLOR_PRINCIPAL }}; padding-left: 15px; margin-bottom: 20px;">
+            <div style="font-size: 28px; font-weight: 900; color: {{ CONF.COLOR_PRINCIPAL }}; line-height: 1.1;">{{ v.get('ID', '?') }}</div>
+            <div style="font-size: 14px; font-weight: bold; color: #555; text-transform: uppercase; margin-top: 5px;">{{ v.get('TIPO', '-') }}</div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; font-size: 13px;">
+            <div><strong style="color:{{ CONF.COLOR_PRINCIPAL }}">MARCA:</strong> {{ v.get('MARCA', '-') }}</div>
+            <div><strong style="color:{{ CONF.COLOR_PRINCIPAL }}">MODELO:</strong> {{ v.get('MODELO', '-') }}</div>
+            <div><strong style="color:{{ CONF.COLOR_PRINCIPAL }}">ÁREA:</strong> {{ v.get('AREA', '-') }}</div>
+            <div><strong style="color:{{ CONF.COLOR_PRINCIPAL }}">ESTADO:</strong> {{ v.get('ESTADO', '-') }}</div>
+
+            <div><strong style="color:{{ CONF.COLOR_PRINCIPAL }}">DOMINIO:</strong> {{ v.get('DOMINIO', '-') }}</div>
+            <div><strong style="color:{{ CONF.COLOR_PRINCIPAL }}">PATRIMONIO:</strong> {{ v.get('PATRIMONIO', '-') }}</div>
+            <div><strong style="color:{{ CONF.COLOR_PRINCIPAL }}">CHOFER:</strong> {{ v.get('CHOFER', '-') }}</div>
+            <div><strong style="color:{{ CONF.COLOR_PRINCIPAL }}">LEGAJO:</strong> {{ v.get('LEGAJO', '-') }}</div>
+        </div>
+    </div>
+</div>

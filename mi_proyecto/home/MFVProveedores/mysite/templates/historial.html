@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Historial {{ tipo|title }} - Unidad {{ id_vehiculo }}{% endblock %}
+
+{% block content %}
+<div class="banner banner-ficha"></div>
+
+<div class="container">
+    <div class="content-padding">
+        <div class="admin-header">
+            <div style="font-size:40px;">{{ icon }}</div>
+            <div>
+                <h1 style="margin:0; font-size:28px; color:var(--primary);">{{ titulo }}</h1>
+                <h2 style="margin:5px 0 0 0; font-size:16px; color:#666;">UNIDAD: <span style="color:var(--secondary); font-weight:900;">{{ id_vehiculo }}</span></h2>
+            </div>
+            <div style="margin-left:auto;">
+                <a href="/ficha/{{ id_vehiculo }}" class="big-btn btn-gray" style="padding:10px 20px; font-size:14px; text-decoration:none;">⬅ Volver a Ficha</a>
+            </div>
+        </div>
+
+        <div style="overflow-x:auto; background:white; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,0.05);">
+            {% if registros %}
+                <table class="list-table">
+                    <thead>
+                        <tr>
+                            {% for col in columnas %}
+                                <th>{{ col }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in registros %}
+                            <tr>
+                                {% for col in columnas %}
+                                    <td>{{ row[col] }}</td>
+                                {% endfor %}
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div style="padding:50px 20px; text-align:center; color:#777;">
+                    <div style="font-size:48px; margin-bottom:15px; opacity:0.6;">{{ icon }}</div>
+                    <h3 style="font-size:20px; color:#555; margin-bottom:8px;">Aún no hay datos registrados para esta unidad.</h3>
+                    <p style="font-size:14px; color:#999; margin:0;">No se encontraron registros de {{ titulo.lower() }} cargados en el sistema.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

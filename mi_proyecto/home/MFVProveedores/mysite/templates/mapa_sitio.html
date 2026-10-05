@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Mapa del Sitio - Índice Técnico{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="banner banner-panel"></div>
+    <div class="content-padding">
+        <div class="admin-header">
+            <div style="font-size:40px;">🗺️</div>
+            <div class="titles">
+                <h1 style="margin:0; font-size:28px; color:var(--primary);">MAPA DE RUTAS</h1>
+                <h2 style="margin:5px 0 0 0; font-size:14px; color:#666;">ÍNDICE TÉCNICO DEL SISTEMA</h2>
+            </div>
+            <div style="margin-left:auto;">
+                <a href="/" class="btn-action" style="padding:10px 20px; background:#666; text-decoration:none; color:white; border-radius:4px;">⬅ Volver al Panel</a>
+            </div>
+        </div>
+
+        <div style="overflow-x:auto;">
+            <table class="list-table">
+                <thead>
+                    <tr>
+                        <th>RUTA (URL)</th>
+                        <th>NOMBRE DE LA FUNCIÓN</th>
+                        <th>MÉTODOS</th>
+                        <th style="text-align:center;">ACCIÓN</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ruta in rutas %}
+                    <tr>
+                        <td style="font-weight:bold; font-family:monospace; font-size:14px; color:var(--primary);">
+                            {{ ruta.url }}
+                        </td>
+                        <td>{{ ruta.endpoint }}</td>
+                        <td><span style="font-size:10px; background:#eee; padding:2px 5px; border-radius:4px;">{{ ruta.methods }}</span></td>
+                        <td style="text-align:center;">
+                            {% if not ruta.dynamic %}
+                                <a href="{{ ruta.url }}" class="btn-action" style="background:var(--success);" target="_blank">IR ➜</a>
+                            {% else %}
+                                <span style="color:#999; font-size:11px;">Requiere ID</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div style="margin-top:20px; background:#fff3cd; padding:15px; border-radius:8px; border:1px solid #ffeeba; font-size:13px; color:#856404;">
+            <strong>ℹ️ Nota:</strong> Las rutas que dicen "Requiere ID" (como <code>/ficha/&lt;id&gt;</code>) no tienen botón de "IR" porque necesitan que especifiques un vehículo concreto para funcionar.
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Panel Flota - Municipalidad de Florencio Varela{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="banner banner-panel"></div>
+
+    <div class="content-padding" style="padding: 25px;">
+        <div class="admin-header">
+            <img src="{{ CONF.LOGO_URL }}" style="height: 80px; width: auto;" alt="Logo">
+            <div style="display: flex; flex-direction: column; justify-content: center; height: 80px;">
+                <h1 style="margin:0; font-size: 32px; color:var(--primary); line-height: 1.2;">PANEL DE FLOTA</h1>
+                <span style="font-size:14px; color:#888; letter-spacing: 1px; font-weight: 500;">MUNICIPALIDAD DE FLORENCIO VARELA</span>
+            </div>
+        </div>
+
+        <div class="stats-row">
+            <div class="stat-box"><span class="stat-val">{{ total }}</span> Unidades</div>
+            <div class="stat-box"><span class="stat-val" style="color:var(--success)">{{ activos }}</span> Activos</div>
+            <div class="stat-box"><span class="stat-val" style="color:var(--danger)">{{ inactivos }}</span> Inactivos</div>
+            <div class="stat-box"><span class="stat-val">{{ percent }}%</span> Operatividad</div>
+        </div>
+
+        <div style="overflow-x:auto;">
+            <table class="list-table" id="tablaFlota">
+                <thead>
+                    <tr>
+                        <th>UNIDAD <br><input type="text" class="filter-input" onkeyup="filtrar(0)" placeholder="Buscar..."></th>
+                        <th>TIPO <br><input type="text" class="filter-input" onkeyup="filtrar(1)" placeholder="Buscar..."></th>
+                        <th>MARCA/MODELO <br><input type="text" class="filter-input" onkeyup="filtrar(2)" placeholder="Buscar..."></th>
+                        <th>PATENTE <br><input type="text" class="filter-input" onkeyup="filtrar(3)" placeholder="Buscar..."></th>
+                        <th>ÁREA <br><input type="text" class="filter-input" onkeyup="filtrar(4)" placeholder="Buscar..."></th>
+                        <th>ESTADO <br><input type="text" class="filter-input" onkeyup="filtrar(5)" placeholder="Buscar..."></th>
+                        <th style="text-align:center;">ACCIONES</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for v in datos %}
+                    <tr>
+                        <td data-label="UNIDAD"><strong>{{ v['ID'] }}</strong></td>
+                        <td data-label="TIPO">{{ v['TIPO'] }}</td>
+                        <td data-label="MARCA">{{ v['MARCA'] }} {{ v['MODELO'] }}</td>
+                        <td data-label="PATENTE">{{ v['DOMINIO'] }}</td>
+                        <td data-label="ÁREA">{{ v['AREA'] }}</td>
+                        <td data-label="ESTADO">
+                            <span style="font-weight:bold; color: {{ CONF.COLOR_ROJO if 'reparaci' in v['ESTADO'].lower() or 'inactiv' in v['ESTADO'].lower() else CONF.COLOR_VERDE }};">
+                                {{ v['ESTADO'] }}
+                            </span>
+                        </td>
+                        <td data-label="ACCIONES">
+                            <div class="action-group">
+                                <a href="/ficha/{{ v['ID'] }}" class="btn-action" target="_blank">📄 Ficha</a>
+                                <a href="/qr/{{ v['ID'] }}" class="btn-action" target="_blank">📱 QR</a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filtrar(n) {
+    var input = document.getElementsByClassName("filter-input")[n];
+    var filter = input.value.toUpperCase();
+    var table = document.getElementById("tablaFlota");
+    var tr = table.getElementsByTagName("tr");
+    for (var i = 1; i < tr.length; i++) {
+        var td = tr[i].getElementsByTagName("td")[n];
+        if (td) {
+            var txt = td.textContent || td.innerText;
+            tr[i].style.display = txt.toUpperCase().indexOf(filter) > -1 ? "" : "none";
+        }
+    }
+}
+</script>
+{% endblock %}

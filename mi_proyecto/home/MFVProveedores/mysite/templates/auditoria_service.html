@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Checklist Service - Unidad {{ v['ID'] }}{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:800px;">
+    <div class="content-padding">
+        <h2 style="color:var(--primary); margin-top:0;">📋 CHECKLIST DE SERVICE</h2>
+        {% include "components/unit_header.html" %}
+
+        <form method="POST">
+            <div class="form-group" style="margin-bottom:15px;">
+                <label class="form-label" style="font-weight:bold; font-size:13px; color:#555;">Tipo de Revisión</label>
+                <select name="tipo_revision" class="form-select">
+                    <option>DIARIA / PRE-VIAJE</option>
+                    <option>PREVENTIVO PROGRAMADO (KM/HORAS)</option>
+                </select>
+            </div>
+
+            <div class="checklist-group">
+                <h4 style="margin-top:0; color:var(--primary);">1. EXTERIOR & CHASIS</h4>
+                <label class="check-item"><input type="checkbox"> Neumáticos (Presión/Desgaste)</label>
+                <label class="check-item"><input type="checkbox"> Luces (Giro, Freno, Altas/Bajas)</label>
+                <label class="check-item"><input type="checkbox"> Carrocería y Suspensión visible</label>
+            </div>
+
+            <div class="checklist-group">
+                <h4 style="margin-top:0; color:var(--primary);">2. INTERIOR CABINA</h4>
+                <label class="check-item"><input type="checkbox"> Frenos (Prueba de pedal)</label>
+                <label class="check-item"><input type="checkbox"> Tablero (Testigos, Combustible)</label>
+                <label class="check-item"><input type="checkbox"> Dirección (Juego libre)</label>
+            </div>
+
+            <div class="checklist-group">
+                <h4 style="margin-top:0; color:var(--primary);">3. MOTOR (APAGADO)</h4>
+                <label class="check-item"><input type="checkbox"> Nivel Aceite</label>
+                <label class="check-item"><input type="checkbox"> Refrigerante</label>
+                <label class="check-item"><input type="checkbox"> Correas y Mangueras</label>
+                <label class="check-item"><input type="checkbox"> Fugas visibles</label>
+            </div>
+
+            <div class="form-group" style="margin-bottom:20px;">
+                <label class="form-label" style="font-weight:bold; font-size:13px; color:#555;">Observaciones Adicionales / Trabajos Realizados</label>
+                <textarea name="observaciones" class="form-input" rows="3" placeholder="Detalle aquí si cambió aceite, filtros, etc..."></textarea>
+            </div>
+
+            <button type="submit" class="big-btn btn-green">💾 GUARDAR REVISIÓN</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

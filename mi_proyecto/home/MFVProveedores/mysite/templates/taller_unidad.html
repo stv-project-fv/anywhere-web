@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}Panel de Unidad {{ id_vehiculo }} - Taller Mecánico{% endblock %}
+
+{% block content %}
+<div class="banner banner-ficha"></div>
+
+<div class="kiosk-container">
+    <div class="kiosk-content">
+        <h2 style="color:var(--danger); margin-top:0;">PANEL DE UNIDAD</h2>
+        <h1 style="font-size:40px; margin:0; color:var(--primary);">{{ id_vehiculo }}</h1>
+        <p style="color:#666; font-weight:500;">Seleccione operación a realizar:</p>
+
+        <div style="display:grid; gap:15px; margin-top:20px;">
+            <a href="/operacion/mantenimiento/{{ id_vehiculo }}" class="big-btn btn-red">🛠️ REPARACIÓN / SOLICITUD</a>
+            <a href="/operacion/combustible/{{ id_vehiculo }}" class="big-btn btn-orange">⛽ CARGA COMBUSTIBLE</a>
+            <a href="/operacion/fluidos/{{ id_vehiculo }}" class="big-btn btn-purple">🛢️ CARGA FLUIDOS</a>
+            <a href="/historial/cronograma/{{ id_vehiculo }}" class="big-btn btn-blue">📅 VER CRONOGRAMA</a>
+        </div>
+        <br>
+        <a href="/taller/mecanico" class="btn-action" style="background:#999; padding:10px 20px; font-size:13px;">VOLVER AL LISTADO</a>
+    </div>
+</div>
+{% endblock %}

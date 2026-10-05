@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Gestión de Taller - Administración{% endblock %}
+
+{% block content %}
+<div class="banner banner-panel"></div>
+
+<div class="container" style="max-width:1400px;">
+    <div class="content-padding">
+        <div class="admin-header">
+            <div>
+                <h1 style="margin:0; color:var(--primary);">GESTIÓN DE TALLER</h1>
+                <a href="/" style="color:#666; text-decoration:none; font-size:14px;">⬅ Volver al Panel Principal</a>
+            </div>
+            <div style="text-align:right;">
+                <div style="font-weight:bold; color:var(--danger); font-size:20px;">{{ lista_final|length }} UNIDADES EN ATENCIÓN</div>
+                <div style="font-size:12px; color:#555;">
+                    <span style="color:var(--success)">● {{ c_activas }} Activas</span> |
+                    <span style="color:var(--danger)">● {{ c_inactivas }} Inactivas</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="admin-grid">
+            <div>
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #ccc; padding-bottom:10px; margin-bottom:15px;">
+                    <h3 style="margin:0; color:#444;">🚜 PARQUE EN ATENCIÓN</h3>
+                    <input type="text" id="filterIzq" onkeyup="filterDivs('izq', 'filterIzq')" placeholder="🔍 Buscar..." class="search-bar" style="width:150px; margin:0;">
+                </div>
+                <div id="container-izq">
+                {% for u in lista_final %}
+                    {% set is_bad = 'inactiv' in u['ESTADO'].lower() or 'reparaci' in u['ESTADO'].lower() %}
+                    {% set color_estado = CONF.COLOR_ROJO if is_bad else CONF.COLOR_VERDE %}
+
+                    <div class="taller-card search-item">
+                        <div class="taller-bar" style="background-color: {{ color_estado }};"></div>
+                        <div class="taller-id">{{ u['ID'] }}</div>
+                        <div class="taller-info">
+                            <div class="taller-type">{{ u['TIPO'] }}</div>
+                            <div class="taller-model">{{ u['MARCA'] }} {{ u['MODELO'] }}</div>
+                            <div class="taller-status" style="color: {{ color_estado }};">{{ u['ESTADO'] }}</div>
+                        </div>
+                        <div class="taller-actions">
+                            <a href="/historial/mantenimiento/{{ u['ID'] }}" target="_blank" class="btn-historial-admin">
+                                HISTORIAL ➜
+                            </a>
+                        </div>
+                    </div>
+                {% endfor %}
+                </div>
+            </div>
+
+            <div style="background:#fffbf0; padding:15px; border-radius:10px; border:1px solid #ffeeba;">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #e0c070; padding-bottom:10px; margin-bottom:15px;">
+                    <h3 style="margin:0; color:#856404;">📦 GESTIÓN DE SOLICITUDES</h3>
+                    <input type="text" id="filterDer" onkeyup="filterDivs('der', 'filterDer')" placeholder="🔍 Buscar..." class="search-bar" style="width:150px; margin:0;">
+                </div>
+                <div id="container-der">
+                {% for u in lista_final %}
+                    {% if u['STATUS_DATA'] %}
+                    <div class="search-item" style="background:white; padding:15px; border-radius:8px; margin-bottom:15px; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                            <span style="font-weight:bold;">{{ u['ID'] }}</span>
+                            {% if u['STATUS_DATA']['ESTADO'] == 'PENDIENTE' %}
+                                <span style="background:var(--danger); color:white; padding:2px 6px; border-radius:4px; font-size:10px;">PENDIENTE</span>
+                            {% elif u['STATUS_DATA']['ESTADO'] == 'PEDIDO' %}
+                                <span style="background:var(--secondary); color:white; padding:2px 6px; border-radius:4px; font-size:10px;">PEDIDO</span>
+                            {% elif u['STATUS_DATA']['ESTADO'] == 'DISPONIBLE' %}
+                                <span style="background:var(--success); color:white; padding:2px 6px; border-radius:4px; font-size:10px;">DISPONIBLE</span>
+                            {% endif %}
+                        </div>
+                        <div style="font-size:12px; color:#555; background:#f9f9f9; padding:8px; border-radius:4px; margin-bottom:10px;">
+                            {{ u['STATUS_DATA']['NOTA'] }}
+                            <div style="font-size:10px; color:#999; margin-top:4px; text-align:right;">{{ u['STATUS_DATA']['FECHA_UPDATE'] }}</div>
+                        </div>
+                        <form method="POST">
+                            <input type="hidden" name="id_vehiculo" value="{{ u['ID'] }}">
+                            <input type="text" name="nota_admin" placeholder="Nota interna..." class="search-bar" style="margin-bottom:8px;">
+                            <div style="display:flex; gap:5px;">
+                                <button type="submit" name="accion_admin" value="MARCAR_PEDIDO" class="btn-action" style="background:var(--secondary); border:none; flex:1;">🟡 Pedido</button>
+                                <button type="submit" name="accion_admin" value="MARCAR_DISPONIBLE" class="btn-action" style="background:var(--success); border:none; flex:1;">🟢 Llegó</button>
+                                <button type="submit" name="accion_admin" value="BORRAR" class="btn-action" style="background:#999; border:none; width:30px;">✖</button>
+                            </div>
+                        </form>
+                    </div>
+                    {% endif %}
+                {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterDivs(containerId, inputId) {
+    var filter = document.getElementById(inputId).value.toUpperCase();
+    var items = document.getElementById('container-' + containerId).getElementsByClassName('search-item');
+    for (var i = 0; i < items.length; i++) {
+        var txt = items[i].textContent || items[i].innerText;
+        items[i].style.display = txt.toUpperCase().indexOf(filter) > -1 ? "" : "none";
+    }
+}
+</script>
+{% endblock %}

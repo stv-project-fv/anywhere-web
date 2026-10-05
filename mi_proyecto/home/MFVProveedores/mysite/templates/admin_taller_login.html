@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Acceso Administración Taller{% endblock %}
+
+{% block content %}
+<div class="login-overlay">
+    <div class="login-box">
+        <h3 style="color:var(--primary); margin-bottom:20px;">ACCESO ADMINISTRACIÓN TALLER</h3>
+        <form method="POST">
+            <input type="password" name="password" placeholder="Contraseña Admin" class="form-input" style="text-align:center;" autofocus required>
+            <br><br>
+            <button type="submit" class="big-btn btn-blue">ENTRAR</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
