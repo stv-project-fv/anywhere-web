@@ -242,7 +242,7 @@
         <!-- Aviso de Edición en Vivo -->
         <div style="background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 10px 15px; border-radius: 6px; font-size: 12px; margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between;">
             <div>
-                💡 <strong>Edición directa habilitada:</strong> Haz doble clic en cualquier celda de <em>Estado, Diagnóstico, Resumen, Chofer o Patente</em> para editarla. Los cambios se guardan automáticamente en la base de datos SQL local.
+                💡 <strong>Edición directa habilitada:</strong> Haz doble clic en cualquier celda de <em>Estado, Diagnóstico, Resumen, Área o Chofer</em> para editarla. Los cambios se guardan automáticamente en la base de datos SQL local.
             </div>
             <span style="font-weight: 700; color: var(--primary);">💾 Autoguardado Activo</span>
         </div>
@@ -346,7 +346,7 @@
                     width: 150,
                     editor: "list",
                     editorParams: {
-                        values: ["ACTIVO", "INACTIVO", "EN REPARACION", "PRESTAMO", "IRRECUPERABLE"]
+                        values: ["ACTIVO", "INACTIVO", "EN REPARACION", "PRESTAMO"]
                     },
                     formatter: function(cell) {
                         const val = cell.getValue() || "ACTIVO";
@@ -399,7 +399,6 @@
                 {
                     title: "PATENTE",
                     field: "DOMINIO",
-                    editor: "input",
                     width: 110
                 },
                 {
@@ -468,7 +467,7 @@
 
     function actualizarEstadisticas() {
         if (!table) return;
-        const allData = table.getData();
+        const allData = table.getData().filter(v => !(v.ESTADO || "").toLowerCase().includes("irrecuperable"));
         const total = allData.length;
         let activos = 0;
         allData.forEach(v => {

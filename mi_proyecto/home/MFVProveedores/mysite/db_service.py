@@ -4,9 +4,17 @@ import csv
 import json
 import requests
 import openpyxl
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, scoped_session
+
+# --- LÓGICA HORARIA BUENOS AIRES, ARGENTINA (UTC-3) ---
+def get_arg_time():
+    """Retorna la fecha y hora actual en Argentina (UTC-3)"""
+    return datetime.utcnow() - timedelta(hours=3)
+
+def get_hora_full_str():
+    return get_arg_time().strftime("%d/%m/%Y %H:%M:%S")
 
 from models import (
     Base, Vehiculo, UnidadContratada, RegistroActividad,
@@ -58,7 +66,7 @@ def sincronizar_desde_google_sheets(url_aux2, url_aux3):
     """
     init_db()
     session = get_session()
-    ahora_str = datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S")
+    ahora_str = get_hora_full_str()
 
     filas_aux2_count = 0
     filas_aux3_count = 0
@@ -95,6 +103,13 @@ def sincronizar_desde_google_sheets(url_aux2, url_aux3):
             anio = get_val(['año', 'ao', 'anio'])
             area = get_val(['área', 'area', 'rea']) or 'SIN ÁREA ASIGNADA'
             estado = get_val(['estado']) or 'ACTIVO'
+
+            # REGLA: Las unidades con estado 'Irrecuperable' están en trámite de baja y NO deben considerarse
+            if 'irrecuperable' in estado.lower():
+                vehiculo_existente = session.query(Vehiculo).filter_by(id=vid).first()
+                if vehiculo_existente:
+                    session.delete(vehiculo_existente)
+                continue
             diagnostico = get_val(['diagnóstico', 'diagnostico', 'diagnstico'])
             resumen = get_val(['resumen'])
             patrimonio = get_val(['patrimonio'])
@@ -274,10 +289,10 @@ def seed_if_empty(url_aux2, url_aux3):
 # ==============================================================================
 
 def get_fleet_data():
-    """Retorna lista de diccionarios con toda la flota propia para compatibilidad"""
+    """Retorna lista de diccionarios con toda la flota propia activa o en taller (excluye irrecuperables en trámite de baja)"""
     session = get_session()
     try:
-        unidades = session.query(Vehiculo).order_by(Vehiculo.id).all()
+        unidades = session.query(Vehiculo).filter(~Vehiculo.estado.ilike('%irrecuperable%')).order_by(Vehiculo.id).all()
         return [u.to_dict() for u in unidades]
     finally:
         session.close()
@@ -561,7 +576,9 @@ def update_vehicle_cell(vehiculo_id, campo, valor):
         campo_norm = campo.lower().strip()
         val_str = str(valor).strip() if valor is not None else ''
 
-        if campo_norm in ['estado']:
+        if campo_norm in ['dominio', 'patente']:
+            return {'success': False, 'error': 'El dominio o patente no es editable'}
+        elif campo_norm in ['estado']:
             v.estado = val_str.upper()
         elif campo_norm in ['diagnostico', 'diagnóstico']:
             v.diagnostico = val_str
@@ -573,8 +590,6 @@ def update_vehicle_cell(vehiculo_id, campo, valor):
             v.chofer = val_str
         elif campo_norm in ['tipo']:
             v.tipo = val_str.upper()
-        elif campo_norm in ['dominio', 'patente']:
-            v.dominio = val_str.upper()
         elif campo_norm in ['motor']:
             v.motor = val_str
         elif campo_norm in ['chasis']:
@@ -598,10 +613,10 @@ def update_vehicle_cell(vehiculo_id, campo, valor):
         session.close()
 
 def export_fleet_to_excel():
-    """Genera un archivo Excel (.xlsx) en memoria con la flota completa formateada"""
+    """Genera un archivo Excel (.xlsx) en memoria con la flota completa formateada (excluye irrecuperables)"""
     session = get_session()
     try:
-        vehiculos = session.query(Vehiculo).order_by(Vehiculo.id).all()
+        vehiculos = session.query(Vehiculo).filter(~Vehiculo.estado.ilike('%irrecuperable%')).order_by(Vehiculo.id).all()
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Flota Municipal"

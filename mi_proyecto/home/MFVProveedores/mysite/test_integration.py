@@ -111,6 +111,23 @@ def run_tests():
     assert "spreadsheetml" in res.content_type
     print(f"  ✓ Excel exportado correctamente: {len(res.data)} bytes generados.")
 
+    # 9. Test de correcciones específicas
+    print("\n9. Probando correcciones específicas:")
+    # a. Bloqueo de edición de Patente
+    res_patente = client.post('/api/vehiculo/actualizar', json={'id': 'AE-1', 'campo': 'dominio', 'valor': 'NUEVO_DOM'})
+    assert res_patente.get_json().get('success') is False
+    print("  ✓ Patente / Dominio bloqueado para edición.")
+
+    # b. Exclusión de unidades 'Irrecuperable'
+    flota = db.get_fleet_data()
+    irrec_en_flota = [v for v in flota if 'irrecuperable' in v.get('ESTADO', '').lower()]
+    assert len(irrec_en_flota) == 0, f"Se encontraron unidades irrecuperables: {irrec_en_flota}"
+    print(f"  ✓ Flota activa: {len(flota)} unidades. 0 unidades irrecuperables.")
+
+    # c. Zona horaria de Buenos Aires en último sync
+    sync_meta = db.get_sync_status()
+    print(f"  ✓ Último Sync en hora de Buenos Aires: {sync_meta.get('ultima_sincronizacion')}")
+
     print("\n=== TODAS LAS PRUEBAS COMPLETADAS CON ÉXITO ===")
 
 if __name__ == '__main__':

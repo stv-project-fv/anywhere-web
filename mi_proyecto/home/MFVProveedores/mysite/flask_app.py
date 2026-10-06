@@ -182,7 +182,7 @@ def index():
 
     datos = get_fleet_data()
     total = len(datos)
-    activos = sum(1 for v in datos if 'inactiv' not in v.get('ESTADO','').lower() and 'reparaci' not in v.get('ESTADO','').lower())
+    activos = sum(1 for v in datos if 'inactiv' not in v.get('ESTADO','').lower() and 'reparaci' not in v.get('ESTADO','').lower() and 'irrecuperable' not in v.get('ESTADO','').lower())
     inactivos = total - activos
     percent = int((activos / total * 100)) if total else 0
     sync_status = db.get_sync_status()
@@ -517,7 +517,7 @@ def informe_arbol():
 def admin_planilla():
     datos = get_fleet_data()
     total = len(datos)
-    activos = sum(1 for v in datos if 'inactiv' not in v.get('ESTADO','').lower() and 'reparaci' not in v.get('ESTADO','').lower())
+    activos = sum(1 for v in datos if 'inactiv' not in v.get('ESTADO','').lower() and 'reparaci' not in v.get('ESTADO','').lower() and 'irrecuperable' not in v.get('ESTADO','').lower())
     inactivos = total - activos
     percent = int((activos / total * 100)) if total else 0
     sync_status = db.get_sync_status()
