@@ -22,6 +22,28 @@
             <div class="stat-box"><span class="stat-val">{{ percent }}%</span> Operatividad</div>
         </div>
 
+        <!-- Barra de Herramientas y Sincronización -->
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; background:#f8f9fa; border:1px solid #e2e8f0; border-radius:8px; padding:12px 18px; margin-bottom:20px;">
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                <button type="button" id="btnSyncMain" onclick="sincronizarSheetsMain()" style="background:var(--primary); color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:700; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+                    <span id="syncIconMain">🔄</span> Sincronizar Google Sheets
+                </button>
+                <a href="/admin/planilla" style="background:var(--secondary); color:#222; text-decoration:none; padding:8px 16px; border-radius:6px; font-weight:700; font-size:13px; display:inline-flex; align-items:center; gap:6px;">
+                    📑 Planilla Editable
+                </a>
+                <a href="/informe/arbol" target="_blank" style="background:#0284c7; color:white; text-decoration:none; padding:8px 16px; border-radius:6px; font-weight:700; font-size:13px; display:inline-flex; align-items:center; gap:6px;">
+                    🌳 Diagrama de Árbol
+                </a>
+                <a href="/admin/exportar/excel" target="_blank" style="background:#107c41; color:white; text-decoration:none; padding:8px 16px; border-radius:6px; font-weight:700; font-size:13px; display:inline-flex; align-items:center; gap:6px;">
+                    📥 Exportar Excel
+                </a>
+            </div>
+            <div style="font-size:12px; color:#64748b; font-weight:600; display:flex; align-items:center; gap:6px;">
+                <span>🕒 Último Sync:</span>
+                <span id="fechaSyncMain" style="color:#0f172a;">{{ sync_status.ultima_sincronizacion if sync_status else 'Pendiente' }}</span>
+            </div>
+        </div>
+
         <div style="overflow-x:auto;">
             <table class="list-table" id="tablaFlota">
                 <thead>
@@ -77,6 +99,37 @@ function filtrar(n) {
             tr[i].style.display = txt.toUpperCase().indexOf(filter) > -1 ? "" : "none";
         }
     }
+}
+
+function sincronizarSheetsMain() {
+    var btn = document.getElementById("btnSyncMain");
+    var icon = document.getElementById("syncIconMain");
+    btn.disabled = true;
+    btn.style.opacity = "0.7";
+    icon.textContent = "⏳";
+
+    fetch("/api/sincronizar_sheets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        btn.disabled = false;
+        btn.style.opacity = "1";
+        icon.textContent = "🔄";
+        if (data.success) {
+            alert("✓ " + data.mensaje);
+            location.reload();
+        } else {
+            alert("Error al sincronizar: " + (data.error || "Error desconocido"));
+        }
+    })
+    .catch(function(err) {
+        btn.disabled = false;
+        btn.style.opacity = "1";
+        icon.textContent = "🔄";
+        alert("Error de conexión al sincronizar con Google Sheets");
+    });
 }
 </script>
 {% endblock %}

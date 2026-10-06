@@ -19,6 +19,10 @@ ENV/
 
 # Archivos de datos locales runtime (evitar subir datos sensibles generados)
 *.csv
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
 
 # Logs y Docker
 *.log

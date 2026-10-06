@@ -8,8 +8,9 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from PIL import Image
 import qrcode
-from flask import Flask, render_template, request, send_file, session, redirect, url_for, flash
+from flask import Flask, render_template, request, send_file, session, redirect, url_for, flash, jsonify
 from flask_caching import Cache
+import db_service as db
 
 # Cargar variables de entorno desde el archivo .env si existe
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -96,25 +97,26 @@ def inject_globals():
     }
 
 # ==============================================================================
-# 🧠  LÓGICA DE DATOS
+# 🧠  LÓGICA DE DATOS (Persistencia SQLite y Sincronización Google Sheets)
 # ==============================================================================
 
-@cache.memoize(timeout=60)
+# Inicialización y siembra automática de SQLite si la base está vacía
+try:
+    db.seed_if_empty(CONF["URL_INFORME_ARBOL"], CONF["URL_INFORME_ARBOL_CONTRATADOS"])
+except Exception as e:
+    print(f"Aviso al verificar base de datos SQLite: {e}")
+
 def get_fleet_data():
-    try:
-        r = requests.get(CONF['URL_FLOTA_PRINCIPAL'])
-        r.encoding = 'utf-8'
-        return list(csv.DictReader(io.StringIO(r.text)))
-    except: return []
+    """Retorna los datos de la flota persistidos en SQLite (lectura instantánea <2ms)"""
+    return db.get_fleet_data()
 
 def find_vehicle_by_key(key):
-    data = get_fleet_data()
-    key_clean = key.strip().upper()
-    return next((v for v in data if v.get('NFC_KEY', '').strip().upper() == key_clean), None)
+    """Búsqueda optimizada por clave NFC en SQLite"""
+    return db.find_vehicle_by_key(key)
 
 def find_vehicle_by_id(id_vehiculo):
-    data = get_fleet_data()
-    return next((v for v in data if v['ID'] == id_vehiculo), None)
+    """Búsqueda por ID de unidad en SQLite"""
+    return db.find_vehicle_by_id(id_vehiculo)
 
 def calcular_dias_actividad(fecha_alta_str):
     try:
@@ -122,64 +124,22 @@ def calcular_dias_actividad(fecha_alta_str):
         alta = datetime.strptime(fecha_alta_str, "%d/%m/%Y")
         dias = (get_arg_time() - alta).days
         return f"{dias} días"
-    except: return "Fecha inválida"
-
-def guardar_registro_simulado(archivo, datos):
-    existe = os.path.exists(archivo)
-    with open(archivo, mode='a', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        if not existe: writer.writerow(datos.keys())
-        writer.writerow(datos.values())
+    except: return "Sin dato"
 
 # --- LÓGICA DE ESTADOS Y MANTENIMIENTO ---
 def get_status_repuesto(id_vehiculo):
-    """Lee estado de repuesto O razón de inactividad"""
-    archivo = 'estado_repuestos.csv'
-    if not os.path.exists(archivo): return None
-    try:
-        with open(archivo, mode='r', encoding='utf-8') as f:
-            for row in csv.DictReader(f):
-                if row['ID'] == id_vehiculo: return row
-    except: pass
-    return None
+    """Lee estado de repuesto O razón de inactividad desde SQLite"""
+    return db.get_status_repuesto(id_vehiculo)
 
 def update_status_repuesto(id_vehiculo, nuevo_estado, nota="", tipo_registro="REPUESTO"):
     """
     tipo_registro: 'REPUESTO' (solicitud) o 'INACTIVIDAD' (razón de baja)
     """
-    archivo = 'estado_repuestos.csv'
-    fieldnames = ['ID', 'ESTADO', 'NOTA', 'FECHA_UPDATE', 'TIPO_REGISTRO']
-    rows = []
-    if os.path.exists(archivo):
-        with open(archivo, mode='r', encoding='utf-8') as f:
-            rows = list(csv.DictReader(f))
-
-    rows = [r for r in rows if r['ID'] != id_vehiculo]
-
-    if nuevo_estado:
-        rows.append({
-            'ID': id_vehiculo,
-            'ESTADO': nuevo_estado,
-            'NOTA': nota,
-            'FECHA_UPDATE': get_hora_full_str(),
-            'TIPO_REGISTRO': tipo_registro
-        })
-
-    with open(archivo, mode='w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+    db.update_status_repuesto(id_vehiculo, nuevo_estado, nota=nota, tipo_registro=tipo_registro, fecha_str=get_hora_full_str())
 
 def get_cronograma(id_vehiculo):
-    """Obtiene el próximo mantenimiento programado"""
-    archivo = 'cronograma_preventivo.csv'
-    if not os.path.exists(archivo): return None
-    try:
-        with open(archivo, mode='r', encoding='utf-8') as f:
-            recs = [r for r in csv.DictReader(f) if r['ID'] == id_vehiculo]
-            if recs: return recs[-1]
-    except: pass
-    return None
+    """Obtiene el próximo mantenimiento programado desde SQLite"""
+    return db.get_cronograma(id_vehiculo)
 
 # ==============================================================================
 # 🚦  RUTAS DEL SISTEMA
@@ -225,8 +185,9 @@ def index():
     activos = sum(1 for v in datos if 'inactiv' not in v.get('ESTADO','').lower() and 'reparaci' not in v.get('ESTADO','').lower())
     inactivos = total - activos
     percent = int((activos / total * 100)) if total else 0
+    sync_status = db.get_sync_status()
 
-    return render_template('index.html', datos=datos, total=total, activos=activos, inactivos=inactivos, percent=percent)
+    return render_template('index.html', datos=datos, total=total, activos=activos, inactivos=inactivos, percent=percent, sync_status=sync_status)
 
 # --- 2. PUESTOS DE CONTROL (SISTEMA DE LLAVE NFC) ---
 @app.route('/puesto/<tipo>', methods=['GET', 'POST'])
@@ -262,22 +223,10 @@ def operacion_actividad(id_vehiculo):
 
         if accion == 'REPUESTO_MENOR':
             update_status_repuesto(id_vehiculo, 'PENDIENTE', nota=f"Acceso: {motivo}")
-            guardar_registro_simulado('historial_actividad.csv', {
-                'FECHA': get_hora_full_str(),
-                'ID': id_vehiculo,
-                'ACCION': 'NOVEDAD',
-                'MOTIVO': f"Solicitud Repuesto: {motivo}",
-                'RESPONSABLE': 'Supervisor Puerta'
-            })
+            db.record_activity(get_hora_full_str(), id_vehiculo, 'NOVEDAD', f"Solicitud Repuesto: {motivo}", 'Supervisor Puerta')
             flash("✅ Solicitud registrada. Unidad sigue ACTIVA.")
         else:
-            guardar_registro_simulado('historial_actividad.csv', {
-                'FECHA': get_hora_full_str(),
-                'ID': id_vehiculo,
-                'ACCION': accion,
-                'MOTIVO': motivo,
-                'RESPONSABLE': 'Supervisor Puerta'
-            })
+            db.record_activity(get_hora_full_str(), id_vehiculo, accion, motivo, 'Supervisor Puerta')
         return redirect(url_for('puesto_control', tipo='actividad'))
 
     return render_template('operacion_actividad.html', v=v)
@@ -290,14 +239,13 @@ def operacion_combustible(id_vehiculo):
         return redirect(url_for('puesto_control', tipo='combustible'))
 
     if request.method == 'POST':
-        datos = {
-            'FECHA': get_hora_full_str(),
-            'ID': id_vehiculo,
-            'TIPO': request.form['tipo'],
-            'LITROS': request.form['litros'],
-            'KM': request.form['km']
-        }
-        guardar_registro_simulado('historial_combustible.csv', datos)
+        db.record_fuel(
+            get_hora_full_str(),
+            id_vehiculo,
+            request.form['tipo'],
+            request.form['litros'],
+            request.form['km']
+        )
         return redirect(url_for('puesto_control', tipo='combustible'))
 
     return render_template('operacion_combustible.html', v=v)
@@ -310,13 +258,13 @@ def operacion_fluidos(id_vehiculo):
         return redirect(url_for('puesto_control', tipo='fluidos'))
 
     if request.method == 'POST':
-        guardar_registro_simulado('historial_fluidos.csv', {
-            'FECHA': get_fecha_str(),
-            'ID': id_vehiculo,
-            'CAT': request.form['cat'],
-            'SUBTIPO': request.form['subtipo'],
-            'CANT': request.form['cant']
-        })
+        db.record_fluids(
+            get_fecha_str(),
+            id_vehiculo,
+            request.form['cat'],
+            request.form['subtipo'],
+            request.form['cant']
+        )
         return redirect(url_for('puesto_control', tipo='fluidos'))
 
     return render_template('operacion_fluidos.html', v=v)
@@ -338,21 +286,11 @@ def operacion_mantenimiento(id_vehiculo):
             update_status_repuesto(id_vehiculo, 'PENDIENTE', nota="Solicitado por mecánico")
         elif tipo == 'RECEPCION_REPUESTO':
             update_status_repuesto(id_vehiculo, None)
-            guardar_registro_simulado('historial_mantenimiento.csv', {
-                'FECHA': get_fecha_str(),
-                'ID': id_vehiculo,
-                'TIPO': 'LOGISTICA',
-                'DETALLE': 'Repuesto recibido y verificado por taller.'
-            })
+            db.record_maintenance(get_fecha_str(), id_vehiculo, 'LOGISTICA', 'Repuesto recibido y verificado por taller.')
             flash("✅ Repuesto recibido correctamente.")
             return redirect(url_for('puesto_control', tipo='mantenimiento'))
         if tipo != 'RECEPCION_REPUESTO':
-            guardar_registro_simulado('historial_mantenimiento.csv', {
-                'FECHA': get_fecha_str(),
-                'ID': id_vehiculo,
-                'TIPO': tipo,
-                'DETALLE': detalle
-            })
+            db.record_maintenance(get_fecha_str(), id_vehiculo, tipo, detalle)
         return redirect(url_for('puesto_control', tipo='mantenimiento'))
 
     return render_template('operacion_mantenimiento.html', v=v, rep_disponible=rep_disponible)
@@ -361,34 +299,22 @@ def operacion_mantenimiento(id_vehiculo):
 @app.route('/historial/<tipo>/<id_vehiculo>')
 def ver_historial(tipo, id_vehiculo):
     config_historial = {
-        'ingresos':     {'archivo': 'historial_actividad.csv',    'titulo': 'CONTROL DE INGRESOS',       'icon': '📍'},
-        'actividad':    {'archivo': 'historial_actividad.csv',    'titulo': 'CONTROL DE INGRESOS',       'icon': '📍'},
-        'cronograma':   {'archivo': 'cronograma_preventivo.csv',  'titulo': 'CRONOGRAMA PREVENTIVO',     'icon': '📅'},
-        'preventivos':  {'archivo': 'historial_preventivos.csv',  'titulo': 'CRONOGRAMA PREVENTIVO',     'icon': '📅'},
-        'mantenimiento':{'archivo': 'historial_mantenimiento.csv','titulo': 'HISTORIAL DE REPARACIONES','icon': '🔧'},
-        'reparaciones': {'archivo': 'historial_mantenimiento.csv','titulo': 'HISTORIAL DE REPARACIONES','icon': '🔧'},
-        'imagenes':     {'archivo': 'historial_imagenes.csv',     'titulo': 'IMÁGENES',                  'icon': '🖼️'},
-        'datos':        {'archivo': 'historial_imagenes.csv',     'titulo': 'IMÁGENES',                  'icon': '🖼️'},
-        'combustible':  {'archivo': 'historial_combustible.csv',  'titulo': 'HISTORIAL DE COMBUSTIBLE',  'icon': '⛽'},
-        'fluidos':      {'archivo': 'historial_fluidos.csv',      'titulo': 'HISTORIAL DE FLUIDOS',      'icon': '🛢️'}
+        'ingresos':     {'titulo': 'CONTROL DE INGRESOS',       'icon': '📍'},
+        'actividad':    {'titulo': 'CONTROL DE INGRESOS',       'icon': '📍'},
+        'cronograma':   {'titulo': 'CRONOGRAMA PREVENTIVO',     'icon': '📅'},
+        'preventivos':  {'titulo': 'CRONOGRAMA PREVENTIVO',     'icon': '📅'},
+        'mantenimiento':{'titulo': 'HISTORIAL DE REPARACIONES','icon': '🔧'},
+        'reparaciones': {'titulo': 'HISTORIAL DE REPARACIONES','icon': '🔧'},
+        'imagenes':     {'titulo': 'IMÁGENES',                  'icon': '🖼️'},
+        'datos':        {'titulo': 'IMÁGENES',                  'icon': '🖼️'},
+        'combustible':  {'titulo': 'HISTORIAL DE COMBUSTIBLE',  'icon': '⛽'},
+        'fluidos':      {'titulo': 'HISTORIAL DE FLUIDOS',      'icon': '🛢️'}
     }
 
     cfg = config_historial.get(tipo.lower())
     if not cfg: return "Tipo de historial no válido"
 
-    archivo_local = cfg['archivo']
-    registros = []
-
-    if os.path.exists(archivo_local):
-        try:
-            with open(archivo_local, mode='r', encoding='utf-8') as f:
-                all_data = list(csv.DictReader(f))
-                registros = [row for row in all_data if row.get('ID') == id_vehiculo]
-                registros.sort(key=lambda x: x.get('FECHA', ''), reverse=True)
-        except Exception as e:
-            print(f"Error leyendo archivo local: {e}")
-            registros = []
-
+    registros = db.get_history_records(tipo, id_vehiculo)
     columnas = [k for k in registros[0].keys() if k != 'ID'] if registros else []
 
     return render_template('historial.html', tipo=tipo, id_vehiculo=id_vehiculo, titulo=cfg['titulo'], icon=cfg['icon'], registros=registros, columnas=columnas)
@@ -396,8 +322,7 @@ def ver_historial(tipo, id_vehiculo):
 # --- 4. FICHA TÉCNICA ---
 @app.route('/ficha/<id_vehiculo>', methods=['GET', 'POST'])
 def ficha(id_vehiculo):
-    datos = get_fleet_data()
-    vehiculo = next((item for item in datos if item["ID"] == id_vehiculo), None)
+    vehiculo = find_vehicle_by_id(id_vehiculo)
     if not vehiculo: return "<h1>Unidad no encontrada</h1>"
 
     if request.method == 'POST':
@@ -405,8 +330,9 @@ def ficha(id_vehiculo):
             session['admin_logged_in'] = True
 
     es_admin = session.get('admin_logged_in', False)
-    specs = {k: v for k, v in vehiculo.items() if k not in CONF['CAMPOS_PUBLICOS_BASE'] and k not in CONF['CAMPOS_PRIVADOS'] and v.strip()}
-    priv = {k: v for k, v in vehiculo.items() if k in CONF['CAMPOS_PRIVADOS'] and v.strip()}
+    # Solo especificaciones técnicas relevantes pobladas (modelo NoSQL)
+    specs = vehiculo.get('ESPECIFICACIONES', {})
+    priv = {k: vehiculo.get(k, '') for k in CONF['CAMPOS_PRIVADOS'] if vehiculo.get(k, '').strip()}
 
     is_inactive = 'inactiv' in vehiculo.get('ESTADO','').lower() or 'reparaci' in vehiculo.get('ESTADO','').lower()
     est_cls = "st-bad" if is_inactive else "st-ok"
@@ -516,20 +442,7 @@ def auditor():
         if v: return redirect(url_for('auditoria_service', id_vehiculo=v['ID']))
         else: flash("❌ Llave no reconocida para iniciar service.")
 
-    flota = get_fleet_data()
-    cronograma = []
-    if os.path.exists('cronograma_preventivo.csv'):
-        with open('cronograma_preventivo.csv', mode='r', encoding='utf-8') as f:
-            cronograma = list(csv.DictReader(f))
-
-    agenda = []
-    for c in cronograma:
-        veh = next((u for u in flota if u['ID'] == c['ID']), None)
-        if veh:
-            c['MARCA'] = veh['MARCA']
-            c['MODELO'] = veh['MODELO']
-            agenda.append(c)
-
+    agenda = db.get_all_cronogramas()
     return render_template('auditor.html', agenda=agenda)
 
 @app.route('/auditor/service/<id_vehiculo>', methods=['GET', 'POST'])
@@ -541,13 +454,13 @@ def auditoria_service(id_vehiculo):
 
     if request.method == 'POST':
         detalles = f"REVISIÓN {request.form.get('tipo_revision')}. Obs: {request.form.get('observaciones')}"
-        guardar_registro_simulado('historial_preventivos.csv', {
-            'FECHA': get_fecha_str(),
-            'ID': id_vehiculo,
-            'TIPO': request.form.get('tipo_revision'),
-            'RESPONSABLE': 'Auditor',
-            'DETALLE': detalles
-        })
+        db.record_preventive(
+            get_fecha_str(),
+            id_vehiculo,
+            request.form.get('tipo_revision'),
+            'Auditor',
+            detalles
+        )
         flash("✅ Service registrado correctamente")
         return redirect(url_for('auditor'))
 
@@ -579,181 +492,13 @@ def recortar_pdf():
 @app.route('/informe/arbol')
 def informe_arbol():
     fecha_hoy = get_fecha_str()
-    ultima_actualizacion = get_hora_full_str()
-    unidades_lista = []
-    areas_disponibles = []
-    tipos_disponibles = []
+    meta = db.get_sync_status()
+    ultima_actualizacion = meta.get('ultima_sincronizacion') or get_hora_full_str()
 
     try:
-        # 1. Descarga del CSV publicado de Google Sheets (Flota Principal)
-        r = requests.get(CONF["URL_INFORME_ARBOL"])
-        r.encoding = 'utf-8'
-        df = pd.read_csv(io.StringIO(r.text))
-        df.columns = df.columns.str.strip()
-
-        col_tipo = next((c for c in df.columns if 'tipo' in c.lower()), 'TIPO')
-        col_unidad = next((c for c in df.columns if 'unidad' in c.lower() or 'id' in c.lower()), 'UNIDAD')
-        col_area = next((c for c in df.columns if 'area' in c.lower() or 'área' in c.lower()), 'ÁREA')
-        col_estado = next((c for c in df.columns if 'estado' in c.lower()), 'ESTADO')
-        col_resumen = next((c for c in df.columns if 'resumen' in c.lower()), None)
-
-        # Descartar filas vacías o inválidas
-        df = df.dropna(subset=[col_tipo, col_unidad])
-        df = df[df[col_tipo].astype(str).str.strip() != '']
-        df = df[df[col_unidad].astype(str).str.strip() != '']
-        df = df[~df[col_tipo].astype(str).str.lower().isin(['nan', 'none', 'null', ''])]
-
-        # REQUISITO 2: DISCRIMINAR IRRECUPERABLE (No se consideran bajo ningún concepto)
-        df = df[~df[col_estado].astype(str).str.lower().str.contains('irrecuperable', na=False)]
-
-        # Normalización de datos
-        df['TIPO_NORM'] = df[col_tipo].astype(str).str.strip().str.upper()
-        df['UNIDAD_NORM'] = df[col_unidad].astype(str).str.strip().str.upper()
-        df['AREA_NORM'] = df[col_area].fillna('SIN ÁREA ASIGNADA').astype(str).str.strip().str.upper()
-        df['AREA_NORM'] = df['AREA_NORM'].replace({'': 'SIN ÁREA ASIGNADA', 'NAN': 'SIN ÁREA ASIGNADA'})
-
-        if col_resumen and col_resumen in df.columns:
-            df['RESUMEN_NORM'] = df[col_resumen].fillna('Sin resumen especificado').astype(str).str.strip()
-            df['RESUMEN_NORM'] = df['RESUMEN_NORM'].replace({'': 'Sin resumen especificado', 'nan': 'Sin resumen especificado', 'NaN': 'Sin resumen especificado'})
-        else:
-            df['RESUMEN_NORM'] = 'Sin resumen especificado'
-
-        def clasificar_estado(val):
-            val_clean = str(val).strip().lower()
-            if val_clean.startswith('funcional'):
-                return 'INACTIVAS'
-            if 'inactiv' in val_clean or 'reparaci' in val_clean:
-                return 'INACTIVAS'
-            elif 'activ' in val_clean:
-                return 'ACTIVAS'
-            return 'INACTIVAS'
-
-        df['ESTADO_CATEGORIA'] = df[col_estado].apply(clasificar_estado)
-
-        for _, row in df.iterrows():
-            col_est_raw = str(row[col_estado]).strip()
-            is_prestamo = 'PRÉSTAMO' in col_est_raw.upper() or 'PRESTAMO' in col_est_raw.upper()
-            area_origen = row['AREA_NORM']
-
-            if is_prestamo:
-                est_upper = col_est_raw.upper()
-                if ' EN ' in est_upper:
-                    dest_part = est_upper.split(' EN ', 1)[1].strip()
-                    if 'ALLAN' in dest_part:
-                        area_destino = 'DELEGACIÓN ING. ALLAN'
-                    elif 'BOSQUES' in dest_part:
-                        area_destino = 'DELEGACIÓN BOSQUES'
-                    elif 'EQUIPOS VIALES' in dest_part:
-                        area_destino = 'EQUIPOS VIALES'
-                    elif 'HIGIENE URBANA' in dest_part:
-                        area_destino = 'HIGIENE URBANA'
-                    elif 'ESPACIOS VERDES' in dest_part:
-                        area_destino = 'ESPACIOS VERDES'
-                    elif 'CEMENTERIO' in dest_part:
-                        area_destino = 'CEMENTERIO'
-                    elif 'ALUMBRADO' in dest_part:
-                        area_destino = 'ALUMBRADO'
-                    else:
-                        area_destino = dest_part
-                else:
-                    area_destino = area_origen
-
-                resumen_norm = f"de {area_origen}"
-            else:
-                area_destino = area_origen
-                resumen_norm = row['RESUMEN_NORM']
-
-            unidades_lista.append({
-                'UNIDAD': row['UNIDAD_NORM'],
-                'TIPO': row['TIPO_NORM'],
-                'AREA': area_destino,
-                'AREA_ORIGEN': area_origen,
-                'ESTADO_CAT': row['ESTADO_CATEGORIA'],
-                'RESUMEN': resumen_norm,
-                'CONTRATADO': False,
-                'PRESTAMO': is_prestamo
-            })
-
-        # REQUISITO 3: SUMAR CONTRATADOS (Hoja AUX 3)
-        try:
-            r_c = requests.get(CONF["URL_INFORME_ARBOL_CONTRATADOS"])
-            r_c.encoding = 'utf-8'
-            df_c = pd.read_csv(io.StringIO(r_c.text))
-            df_c.columns = df_c.columns.str.strip()
-
-            col_tc = next((c for c in df_c.columns if 'tipo' in c.lower()), 'TIPO_C')
-            col_ac = next((c for c in df_c.columns if 'area_c' in c.lower() or 'área_c' in c.lower() or ('area' in c.lower() and 'prestamo' not in c.lower())), 'AREA_C')
-            col_cc = next((c for c in df_c.columns if 'cantidad_c' in c.lower() or ('cant' in c.lower() and '_c' in c.lower()) or 'cant' in c.lower()), 'CANTIDAD_C')
-            col_em = next((c for c in df_c.columns if 'emerg' in c.lower()), 'SOLO_EMERGENCIA')
-            col_dp = next((c for c in df_c.columns if 'de_prestamo' in c.lower() or 'prestamo' in c.lower()), 'DE_PRESTAMO')
-            col_cp = next((c for c in df_c.columns if 'cantidad_p' in c.lower() or ('cant' in c.lower() and '_p' in c.lower())), 'CANTIDAD_P')
-
-            for _, row_c in df_c.iterrows():
-                tipo_c = str(row_c.get(col_tc, '')).strip().upper()
-                area_c = str(row_c.get(col_ac, '')).strip().upper()
-                cant_c_raw = str(row_c.get(col_cc, '1')).strip()
-                try:
-                    cant_c = int(float(cant_c_raw))
-                except (ValueError, TypeError):
-                    cant_c = 1
-
-                solo_emerg = 'SI' in str(row_c.get(col_em, '')).strip().upper()
-                resumen_c = "Unidad Contratada (Solo Emergencia)" if solo_emerg else "Unidad Contratada"
-
-                if tipo_c and area_c and tipo_c not in ['NAN', 'NONE', 'NULL', ''] and area_c not in ['NAN', 'NONE', 'NULL', '']:
-                    de_prestamo_raw = str(row_c.get(col_dp, '')).strip().upper()
-                    cant_p_raw = str(row_c.get(col_cp, '0')).strip()
-
-                    cant_p = 0
-                    area_p = None
-                    if de_prestamo_raw and de_prestamo_raw not in ['NAN', 'NONE', 'NULL', '']:
-                        try:
-                            cant_p = int(float(cant_p_raw))
-                        except (ValueError, TypeError):
-                            cant_p = 0
-                        if cant_p > 0:
-                            area_p = de_prestamo_raw
-
-                    if area_p and cant_p > 0:
-                        cant_p = min(cant_p, cant_c)
-                        cant_propias = cant_c - cant_p
-                    else:
-                        cant_p = 0
-                        cant_propias = cant_c
-
-                    for i in range(cant_propias):
-                        unidades_lista.append({
-                            'UNIDAD': f"CONTRATADO #{i+1}" if cant_propias > 1 else "CONTRATADO",
-                            'TIPO': tipo_c,
-                            'AREA': area_c,
-                            'AREA_ORIGEN': area_c,
-                            'ESTADO_CAT': 'ACTIVAS',
-                            'RESUMEN': resumen_c,
-                            'CONTRATADO': True,
-                            'PRESTAMO': False
-                        })
-
-                    for i in range(cant_p):
-                        unidades_lista.append({
-                            'UNIDAD': f"CONTRATADO #{i+1}" if cant_p > 1 else "CONTRATADO",
-                            'TIPO': tipo_c,
-                            'AREA': area_p,
-                            'AREA_ORIGEN': area_c,
-                            'ESTADO_CAT': 'ACTIVAS',
-                            'RESUMEN': f"de {area_c}",
-                            'CONTRATADO': True,
-                            'PRESTAMO': True
-                        })
-        except Exception as e_c:
-            print(f"Error cargando hoja de contratados (AUX 3): {e_c}")
-
-        tipos_disponibles = sorted(list(set(u['TIPO'] for u in unidades_lista if u['TIPO'])))
-        areas_disponibles = sorted(list(set(u['AREA'] for u in unidades_lista if u['AREA'] and u['AREA'] != 'SIN ÁREA ASIGNADA')))
-        if any(u['AREA'] == 'SIN ÁREA ASIGNADA' for u in unidades_lista):
-            areas_disponibles.append('SIN ÁREA ASIGNADA')
-
+        unidades_lista, areas_disponibles, tipos_disponibles = db.get_tree_report_data()
     except Exception as e:
-        print(f"Error al procesar el CSV del árbol: {e}")
+        print(f"Error generando informe de árbol desde SQLite: {e}")
         unidades_lista = []
         areas_disponibles = []
         tipos_disponibles = []
@@ -765,6 +510,60 @@ def informe_arbol():
         rawData_json=json.dumps(unidades_lista, ensure_ascii=False),
         areas_json=json.dumps(areas_disponibles, ensure_ascii=False),
         tipos_json=json.dumps(tipos_disponibles, ensure_ascii=False)
+    )
+
+# --- 10. PLANILLA DE GESTIÓN Y EDICIÓN EN LÍNEA ---
+@app.route('/admin/planilla')
+def admin_planilla():
+    datos = get_fleet_data()
+    total = len(datos)
+    activos = sum(1 for v in datos if 'inactiv' not in v.get('ESTADO','').lower() and 'reparaci' not in v.get('ESTADO','').lower())
+    inactivos = total - activos
+    percent = int((activos / total * 100)) if total else 0
+    sync_status = db.get_sync_status()
+
+    return render_template(
+        'admin_planilla.html',
+        datos=datos,
+        total=total,
+        activos=activos,
+        inactivos=inactivos,
+        percent=percent,
+        sync_status=sync_status
+    )
+
+# --- 11. API DE SINCRONIZACIÓN Y EDICIÓN ---
+@app.route('/api/sincronizar_sheets', methods=['GET', 'POST'])
+def api_sincronizar_sheets():
+    res = db.sincronizar_desde_google_sheets(
+        CONF["URL_INFORME_ARBOL"],
+        CONF["URL_INFORME_ARBOL_CONTRATADOS"]
+    )
+    if res.get('success'):
+        res['datos'] = get_fleet_data()
+    return jsonify(res)
+
+@app.route('/api/vehiculo/actualizar', methods=['POST'])
+def api_actualizar_vehiculo():
+    data = request.get_json(silent=True) or {}
+    vid = data.get('id')
+    campo = data.get('campo')
+    valor = data.get('valor')
+    if not vid or not campo:
+        return jsonify({'success': False, 'error': 'Faltan parámetros requeridos (id, campo)'}), 400
+
+    res = db.update_vehicle_cell(vid, campo, valor)
+    return jsonify(res)
+
+@app.route('/admin/exportar/excel')
+def admin_exportar_excel():
+    excel_stream = db.export_fleet_to_excel()
+    fecha_nombre = get_arg_time().strftime("%Y%m%d_%H%M")
+    return send_file(
+        excel_stream,
+        as_attachment=True,
+        download_name=f"Flota_Municipal_{fecha_nombre}.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
 if __name__ == '__main__':
