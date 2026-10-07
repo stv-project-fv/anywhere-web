@@ -8,29 +8,58 @@
 
     <div class="content-padding">
         <div class="admin-header">
-            <img src="{{ CONF.LOGO_URL }}" style="width:80px;" alt="Logo">
+            <img src="{{ CONF.LOGO_URL }}" style="width:80px;" alt="Logo Municipalidad">
             <div class="titles">
-                <h1 style="margin:0; font-size:28px; color:var(--primary);">FICHA TÉCNICA</h1>
-                <h2 style="margin:5px 0 0 0; font-size:14px; color:#666;">MUNICIPALIDAD DE FLORENCIO VARELA</h2>
+                <h1 style="margin:0; font-size:28px; color:var(--primary); font-weight:900;">FICHA TÉCNICA</h1>
+                <h2 style="margin:5px 0 0 0; font-size:14px; color:#666; font-weight:700;">MUNICIPALIDAD DE FLORENCIO VARELA</h2>
             </div>
         </div>
+
+        {% if ot_activa %}
+            <div style="background:#fff3cd; border:2px solid #856404; padding:15px; border-radius:8px; margin-bottom:25px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                    <div>
+                        <div style="font-weight:900; color:#856404; font-size:14px; text-transform:uppercase;">
+                            UNIDAD EN TALLER MECÁNICO - N° {{ ot_activa.numero_ot }} ({{ ot_activa.estado_ot }})
+                        </div>
+                        <div style="font-size:13px; color:#333; margin-top:4px;">
+                            <strong>Falla reportada:</strong> {{ ot_activa.motivo_ingreso }}
+                            | <strong>Tiempo en taller:</strong> {{ ot_activa.dias_en_taller }} días
+                            {% if ot_activa.repuestos_detalle %}
+                                | <strong>Repuesto:</strong> {{ ot_activa.repuestos_detalle }}
+                            {% endif %}
+                            {% if ot_activa.mecanico_asignado %}
+                                | <strong>Mecánico:</strong> {{ ot_activa.mecanico_asignado }}
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div>
+                        <a href="/taller" class="btn-action" style="background:#856404; font-weight:800; padding:8px 14px; border-radius:4px; font-size:12px;">
+                            VER EN PANEL DE TALLER
+                        </a>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
 
         <div class="main-grid">
             <div class="left-column">
                 <div style="border-left:5px solid var(--primary); padding-left:15px; margin-bottom:25px;">
-                    <div style="font-size:32px; font-weight:900; color:var(--primary); line-height:1;">{{ v['ID'] }}</div>
-                    <div style="font-size:18px; font-weight:bold; color:#555; margin-top:5px;">{{ v['TIPO'] }}</div>
+                    <div style="font-size:32px; font-weight:900; color:var(--primary); line-height:1; font-family:'Arial Black', sans-serif;">{{ v['ID'] }}</div>
+                    <div style="font-size:18px; font-weight:bold; color:#555; margin-top:5px; text-transform:uppercase;">{{ v['TIPO'] }}</div>
                 </div>
 
                 <table class="data-table">
-                    <tr><td class="label">MARCA/MODELO</td><td class="value">{{ v['MARCA'] }} {{ v['MODELO'] }}</td></tr>
+                    <tr><td class="label">MARCA / MODELO</td><td class="value">{{ v['MARCA'] }} {{ v['MODELO'] }}</td></tr>
                     <tr><td class="label">DOMINIO</td><td class="value">{{ v['DOMINIO'] }}</td></tr>
                     <tr><td class="label">AÑO</td><td class="value">{{ v['AÑO'] }}</td></tr>
-                    <tr><td class="label">ÁREA</td><td class="value">{{ v['AREA'] }}</td></tr>
+                    <tr><td class="label">ÁREA ASIGNADA</td><td class="value">{{ v['AREA'] }}</td></tr>
                 </table>
 
                 {% if specs %}
-                <div style="background:#f4f4f4; padding:8px 10px; font-weight:bold; font-size:12px; margin-top:20px; border-radius:4px; color:#555;">ESPECIFICACIONES TÉCNICAS</div>
+                <div style="background:#f4f4f4; padding:8px 10px; font-weight:bold; font-size:12px; margin-top:20px; border-radius:4px; color:#555; text-transform:uppercase;">
+                    Especificaciones Técnicas
+                </div>
                 <table class="data-table">
                     {% for k, val in specs.items() %}
                     <tr><td class="label">{{ k }}</td><td class="value">{{ val }}</td></tr>
@@ -41,8 +70,8 @@
                 {% if admin %}
                     <div class="private-box">
                         <div style="display:flex; justify-content:space-between; margin-bottom:15px; border-bottom:1px solid #faeccc; padding-bottom:10px;">
-                            <span style="font-weight:bold; color:#d39e00;">🔒 DATOS PRIVADOS</span>
-                            <a href="/logout" style="color:#dc3545; font-size:12px; text-decoration:none;">Cerrar Sesión ✖</a>
+                            <span style="font-weight:bold; color:#d39e00; text-transform:uppercase; font-size:13px;">DATOS PRIVADOS RESERVADOS</span>
+                            <a href="/logout" style="color:#dc3545; font-size:12px; font-weight:bold; text-decoration:none;">Cerrar Sesión</a>
                         </div>
                         <table class="data-table">
                             {% for k, val in priv.items() %}
@@ -51,28 +80,28 @@
                         </table>
 
                         {% if razon_inactiva %}
-                        <div style="background:#f8d7da; color:#721c24; padding:10px; border-radius:5px; margin-top:10px; font-weight:bold; border:1px solid #f5c6cb;">
-                            ⚠️ UNIDAD INACTIVA: {{ razon_inactiva }}
+                        <div style="background:#f8d7da; color:#721c24; padding:10px; border-radius:5px; margin-top:10px; font-weight:bold; border:1px solid #f5c6cb; font-size:13px;">
+                            ESTADO DE INACTIVIDAD: {{ razon_inactiva }}
                         </div>
                         {% endif %}
 
                         <div style="margin-top:20px;">
                             <div style="font-size:12px; font-weight:bold; margin-bottom:10px; color:#666; text-transform:uppercase;">Historiales Operativos:</div>
                             <div class="menu-historial-grid">
-                                <a href="/historial/ingresos/{{ v['ID'] }}" class="btn-historial"><span>📍</span> CONTROL INGRESOS</a>
-                                <a href="/historial/cronograma/{{ v['ID'] }}" class="btn-historial"><span>📅</span> CRONOGRAMA PREVENTIVO</a>
-                                <a href="/historial/mantenimiento/{{ v['ID'] }}" class="btn-historial"><span>🔧</span> HISTORIAL REPARACIONES</a>
-                                <a href="/historial/imagenes/{{ v['ID'] }}" class="btn-historial"><span>🖼️</span> IMÁGENES</a>
+                                <a href="/historial/ingresos/{{ v['ID'] }}" class="btn-historial">CONTROL DE INGRESOS</a>
+                                <a href="/historial/cronograma/{{ v['ID'] }}" class="btn-historial">CRONOGRAMA PREVENTIVO</a>
+                                <a href="/historial/mantenimiento/{{ v['ID'] }}" class="btn-historial">HISTORIAL REPARACIONES</a>
+                                <a href="/historial/imagenes/{{ v['ID'] }}" class="btn-historial">LEGAJO FOTOGRÁFICO</a>
                             </div>
                         </div>
                     </div>
                 {% else %}
                     <div style="margin-top:30px; border-top:1px dashed #ccc; padding-top:20px;">
-                        <button onclick="document.getElementById('login').style.display='block';this.style.display='none'" class="login-btn" style="background:none; border:none; color:#888; text-decoration:underline; cursor:pointer;">🔒 Acceso Administrativo</button>
+                        <button onclick="document.getElementById('login').style.display='block';this.style.display='none'" class="login-btn" style="background:none; border:none; color:#888; text-decoration:underline; cursor:pointer; font-size:13px; font-weight:700;">Acceso Administrativo</button>
                         <form id="login" method="POST" style="display:none; margin-top:10px; text-align:left;">
                             <div style="display:flex; gap:10px;">
                                 <input type="password" name="password" placeholder="Contraseña..." style="padding:8px; border:1px solid #ccc; border-radius:4px; flex:1;">
-                                <button type="submit" style="padding:8px 15px; background:var(--primary); color:white; border:none; border-radius:4px; cursor:pointer;">Entrar</button>
+                                <button type="submit" style="padding:8px 15px; background:var(--primary); color:white; border:none; border-radius:4px; cursor:pointer; font-weight:800;">Entrar</button>
                             </div>
                         </form>
                     </div>
@@ -89,4 +118,3 @@
     </div>
 </div>
 {% endblock %}
-

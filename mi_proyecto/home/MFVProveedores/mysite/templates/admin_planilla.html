@@ -215,14 +215,17 @@
                 <button type="button" class="btn-tool btn-sync" id="btnSync" onclick="ejecutarSincronizacion()">
                     <span id="syncIcon">🔄</span> Sincronizar desde Google Sheets
                 </button>
+                <a href="/taller" class="btn-tool" style="background:#2d3748; color:white;">
+                    Panel de Taller (OT)
+                </a>
                 <a href="/admin/exportar/excel" class="btn-tool btn-excel" target="_blank">
-                    📥 Descargar Excel (.xlsx)
+                    Descargar Excel (.xlsx)
                 </a>
                 <a href="/informe/arbol" class="btn-tool" style="background:#0284c7; color:white;" target="_blank">
-                    🌳 Diagrama de Árbol
+                    Diagrama de Árbol
                 </a>
                 <div class="sync-info-badge" id="syncStatusBadge">
-                    <span>🕒 Último Sync:</span>
+                    <span>Último Sync:</span>
                     <strong id="syncFechaTexto">{{ sync_status.ultima_sincronizacion if sync_status else 'No sincronizado' }}</strong>
                 </div>
             </div>

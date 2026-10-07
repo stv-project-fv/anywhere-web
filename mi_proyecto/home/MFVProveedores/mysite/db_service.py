@@ -19,7 +19,8 @@ def get_hora_full_str():
 from models import (
     Base, Vehiculo, UnidadContratada, RegistroActividad,
     RegistroCombustible, RegistroFluidos, RegistroMantenimiento,
-    RegistroPreventivo, SolicitudRepuesto, CronogramaPreventivo, MetadataSync
+    RegistroPreventivo, SolicitudRepuesto, CronogramaPreventivo, MetadataSync,
+    OrdenTrabajo
 )
 
 # Ruta a la base de datos SQLite persistente
@@ -437,19 +438,286 @@ def get_history_records(tipo, vehiculo_id):
         t = tipo.lower()
         if t in ['ingresos', 'actividad']:
             q = session.query(RegistroActividad).filter_by(vehiculo_id=vehiculo_id).order_by(RegistroActividad.id.desc()).all()
+            return [r.to_dict() for r in q]
         elif t in ['combustible']:
             q = session.query(RegistroCombustible).filter_by(vehiculo_id=vehiculo_id).order_by(RegistroCombustible.id.desc()).all()
+            return [r.to_dict() for r in q]
         elif t in ['fluidos']:
             q = session.query(RegistroFluidos).filter_by(vehiculo_id=vehiculo_id).order_by(RegistroFluidos.id.desc()).all()
+            return [r.to_dict() for r in q]
         elif t in ['mantenimiento', 'reparaciones']:
-            q = session.query(RegistroMantenimiento).filter_by(vehiculo_id=vehiculo_id).order_by(RegistroMantenimiento.id.desc()).all()
+            ots = session.query(OrdenTrabajo).filter_by(vehiculo_id=vehiculo_id).order_by(OrdenTrabajo.id.desc()).all()
+            mants = session.query(RegistroMantenimiento).filter_by(vehiculo_id=vehiculo_id).order_by(RegistroMantenimiento.id.desc()).all()
+            res = []
+            for ot in ots:
+                res.append({
+                    'FECHA': ot.fecha_ingreso,
+                    'OT / TIPO': ot.numero_ot,
+                    'ESTADO': ot.estado_ot,
+                    'SISTEMA': ot.sistema_afectado,
+                    'FALLA / DETALLE': ot.motivo_ingreso or '',
+                    'TRABAJO REALIZADO': ot.trabajo_realizado or '',
+                    'REPUESTOS': ot.repuestos_detalle or '-',
+                    'RESPONSABLE': ot.mecanico_asignado or 'Taller',
+                    'EGRESO': ot.fecha_egreso or '-'
+                })
+            for m in mants:
+                res.append({
+                    'FECHA': m.fecha,
+                    'OT / TIPO': 'HISTÓRICO',
+                    'ESTADO': 'CERRADA',
+                    'SISTEMA': m.tipo or 'MECANICA',
+                    'FALLA / DETALLE': m.detalle or '',
+                    'TRABAJO REALIZADO': m.detalle or '',
+                    'REPUESTOS': '-',
+                    'RESPONSABLE': 'Taller',
+                    'EGRESO': m.fecha
+                })
+            return res
         elif t in ['preventivos', 'cronograma']:
             q = session.query(RegistroPreventivo).filter_by(vehiculo_id=vehiculo_id).order_by(RegistroPreventivo.id.desc()).all()
+            return [r.to_dict() for r in q]
+        elif t in ['imagenes', 'datos']:
+            v = session.query(Vehiculo).filter_by(id=vehiculo_id).first()
+            if v:
+                return [{
+                    'ID': v.id,
+                    'DOMINIO': v.dominio,
+                    'MARCA': v.marca,
+                    'MODELO': v.modelo,
+                    'AREA': v.area,
+                    'FOTO_URL': v.foto_url or '',
+                    'CHASIS': v.chasis or '',
+                    'MOTOR': v.motor or ''
+                }]
+            return []
         else:
             q = []
-        return [r.to_dict() for r in q]
+            return [r.to_dict() for r in q]
     finally:
         session.close()
+
+# ==============================================================================
+# 🛠️ GESTIÓN OPERATIVA DE TALLER Y ÓRDENES DE TRABAJO (OT)
+# ==============================================================================
+
+def crear_orden_trabajo(vehiculo_id, motivo_ingreso, sistema_afectado='MECANICA', prioridad='NORMAL', mecanico_asignado='', km_ingreso='', inmoviliza_unidad=True):
+    """
+    Crea una nueva Orden de Trabajo.
+    Si inmoviliza_unidad es True, pone al vehículo en estado 'EN REPARACIÓN'
+    y actualiza su diagnóstico operativo en toda la flota.
+    """
+    init_db()
+    session = get_session()
+    try:
+        total_ots = session.query(OrdenTrabajo).count()
+        nuevo_num = f"OT-{total_ots + 1:04d}"
+        
+        while session.query(OrdenTrabajo).filter_by(numero_ot=nuevo_num).first():
+            total_ots += 1
+            nuevo_num = f"OT-{total_ots + 1:04d}"
+
+        fecha_ingreso = get_arg_time().strftime("%d/%m/%Y %H:%M")
+
+        ot = OrdenTrabajo(
+            numero_ot=nuevo_num,
+            vehiculo_id=vehiculo_id,
+            fecha_ingreso=fecha_ingreso,
+            estado_ot='EN_REPARACION',
+            prioridad=(prioridad or 'NORMAL').upper(),
+            sistema_afectado=(sistema_afectado or 'MECANICA').upper(),
+            mecanico_asignado=mecanico_asignado or '',
+            motivo_ingreso=motivo_ingreso or '',
+            km_ingreso=str(km_ingreso) if km_ingreso else '',
+            inmoviliza_unidad=bool(inmoviliza_unidad)
+        )
+        session.add(ot)
+
+        v = session.query(Vehiculo).filter_by(id=vehiculo_id).first()
+        if v and inmoviliza_unidad:
+            v.estado = 'EN REPARACIÓN'
+            v.diagnostico = f"OT #{nuevo_num}: {motivo_ingreso}"
+
+        session.commit()
+        return ot.to_dict()
+    except Exception as e:
+        session.rollback()
+        raise e
+    finally:
+        session.close()
+
+def actualizar_estado_ot(ot_id, nuevo_estado=None, repuestos_detalle=None, trabajo_realizado=None, mecanico_asignado=None):
+    """Actualiza el estado operativo, notas de repuesto o avance de una OT"""
+    session = get_session()
+    try:
+        ot = session.query(OrdenTrabajo).filter_by(id=ot_id).first()
+        if not ot:
+            return {'success': False, 'error': f"OT con ID {ot_id} no encontrada"}
+
+        if nuevo_estado:
+            ot.estado_ot = nuevo_estado.upper()
+        if repuestos_detalle is not None:
+            ot.repuestos_detalle = repuestos_detalle
+        if trabajo_realizado is not None:
+            ot.trabajo_realizado = trabajo_realizado
+        if mecanico_asignado is not None:
+            ot.mecanico_asignado = mecanico_asignado
+
+        v = session.query(Vehiculo).filter_by(id=ot.vehiculo_id).first()
+        if v:
+            if ot.estado_ot == 'ESPERANDO_REPUESTO':
+                rep_txt = ot.repuestos_detalle or ot.motivo_ingreso
+                v.diagnostico = f"OT #{ot.numero_ot} (ESPERANDO REPUESTO): {rep_txt}"
+            elif ot.estado_ot == 'LISTO_PARA_ALTA':
+                v.diagnostico = f"OT #{ot.numero_ot} (REPARACIÓN FINALIZADA - LISTO PARA ALTA)"
+
+        session.commit()
+        return {'success': True, 'ot': ot.to_dict()}
+    except Exception as e:
+        session.rollback()
+        return {'success': False, 'error': str(e)}
+    finally:
+        session.close()
+
+def cerrar_orden_trabajo(ot_id, trabajo_realizado='', km_egreso=''):
+    """
+    Otorga el Alta Operativa a la unidad:
+    Cierra la OT, asienta fecha de egreso, devuelve el vehículo a 'ACTIVO'
+    y graba el trabajo en el historial técnico permanente.
+    """
+    session = get_session()
+    try:
+        ot = session.query(OrdenTrabajo).filter_by(id=ot_id).first()
+        if not ot:
+            return {'success': False, 'error': f"OT con ID {ot_id} no encontrada"}
+
+        fecha_egreso = get_arg_time().strftime("%d/%m/%Y %H:%M")
+        ot.estado_ot = 'CERRADA'
+        ot.fecha_egreso = fecha_egreso
+        if trabajo_realizado:
+            ot.trabajo_realizado = trabajo_realizado
+        if km_egreso:
+            ot.km_egreso = str(km_egreso)
+
+        v = session.query(Vehiculo).filter_by(id=ot.vehiculo_id).first()
+        if v:
+            otra_abierta = session.query(OrdenTrabajo).filter(
+                OrdenTrabajo.vehiculo_id == ot.vehiculo_id,
+                OrdenTrabajo.id != ot.id,
+                OrdenTrabajo.estado_ot != 'CERRADA'
+            ).first()
+
+            if not otra_abierta:
+                v.estado = 'ACTIVO'
+                v.diagnostico = ''
+
+        detalle_audit = f"OT #{ot.numero_ot} - {ot.sistema_afectado}: {ot.trabajo_realizado or ot.motivo_ingreso}"
+        if ot.repuestos_detalle:
+            detalle_audit += f" | Repuestos: {ot.repuestos_detalle}"
+        rec = RegistroMantenimiento(
+            fecha=fecha_egreso,
+            vehiculo_id=ot.vehiculo_id,
+            tipo=ot.sistema_afectado,
+            detalle=detalle_audit
+        )
+        session.add(rec)
+
+        session.commit()
+        return {'success': True, 'ot': ot.to_dict()}
+    except Exception as e:
+        session.rollback()
+        return {'success': False, 'error': str(e)}
+    finally:
+        session.close()
+
+def get_ordenes_taller_activas():
+    """Devuelve las órdenes de trabajo activas con datos del vehículo y días de permanencia"""
+    init_db()
+    session = get_session()
+    try:
+        ots = session.query(OrdenTrabajo).filter(OrdenTrabajo.estado_ot != 'CERRADA').order_by(
+            OrdenTrabajo.prioridad.desc(),
+            OrdenTrabajo.id.desc()
+        ).all()
+
+        hoy = get_arg_time().date()
+        res = []
+        for ot in ots:
+            d = ot.to_dict()
+            v = session.query(Vehiculo).filter_by(id=ot.vehiculo_id).first()
+            if v:
+                d['marca'] = v.marca or ''
+                d['modelo'] = v.modelo or ''
+                d['dominio'] = v.dominio or ''
+                d['area'] = v.area or ''
+                d['foto_url'] = v.foto_url or ''
+                d['tipo_vehiculo'] = v.tipo or ''
+            else:
+                d['marca'] = ''
+                d['modelo'] = ''
+                d['dominio'] = ''
+                d['area'] = ''
+                d['foto_url'] = ''
+                d['tipo_vehiculo'] = ''
+
+            dias = 0
+            if ot.fecha_ingreso:
+                try:
+                    f_part = ot.fecha_ingreso.split()[0]
+                    dt = datetime.strptime(f_part, "%d/%m/%Y").date()
+                    dias = max(0, (hoy - dt).days)
+                except Exception:
+                    dias = 0
+            d['dias_en_taller'] = dias
+            res.append(d)
+
+        return res
+    finally:
+        session.close()
+
+def get_ot_by_id(ot_id):
+    """Devuelve una OT por su identificador primario"""
+    session = get_session()
+    try:
+        ot = session.query(OrdenTrabajo).filter_by(id=ot_id).first()
+        return ot.to_dict() if ot else None
+    finally:
+        session.close()
+
+def get_ot_activa_vehiculo(vehiculo_id):
+    """Devuelve la OT activa de un vehículo si se encuentra en taller"""
+    session = get_session()
+    try:
+        ot = session.query(OrdenTrabajo).filter(
+            OrdenTrabajo.vehiculo_id == vehiculo_id,
+            OrdenTrabajo.estado_ot != 'CERRADA'
+        ).first()
+        if ot:
+            d = ot.to_dict()
+            hoy = get_arg_time().date()
+            dias = 0
+            if ot.fecha_ingreso:
+                try:
+                    f_part = ot.fecha_ingreso.split()[0]
+                    dt = datetime.strptime(f_part, "%d/%m/%Y").date()
+                    dias = max(0, (hoy - dt).days)
+                except Exception:
+                    dias = 0
+            d['dias_en_taller'] = dias
+            return d
+        return None
+    finally:
+        session.close()
+
+def get_historial_ot_vehiculo(vehiculo_id):
+    """Devuelve todas las órdenes históricas de un vehículo"""
+    session = get_session()
+    try:
+        ots = session.query(OrdenTrabajo).filter_by(vehiculo_id=vehiculo_id).order_by(OrdenTrabajo.id.desc()).all()
+        return [ot.to_dict() for ot in ots]
+    finally:
+        session.close()
+
 
 # ==============================================================================
 # 📊 GENERADOR DE DATOS PARA INFORME DE ÁRBOL (/informe/arbol)

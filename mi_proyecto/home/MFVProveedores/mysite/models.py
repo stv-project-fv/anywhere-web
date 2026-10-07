@@ -226,3 +226,45 @@ class MetadataSync(Base):
     estado_sync = Column(String(100), default='PENDIENTE')
     mensaje = Column(Text, default='')
 
+class OrdenTrabajo(Base):
+    __tablename__ = 'ordenes_trabajo'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    numero_ot = Column(String(50), unique=True, index=True)
+    vehiculo_id = Column(String(50), ForeignKey('vehiculos.id'), nullable=False, index=True)
+    
+    fecha_ingreso = Column(String(50), nullable=False)
+    fecha_egreso = Column(String(50), default='')
+    
+    estado_ot = Column(String(50), default='EN_REPARACION', index=True)
+    prioridad = Column(String(20), default='NORMAL')
+    sistema_afectado = Column(String(100), default='MECANICA')
+    
+    mecanico_asignado = Column(String(150), default='')
+    motivo_ingreso = Column(Text, default='')
+    trabajo_realizado = Column(Text, default='')
+    repuestos_detalle = Column(Text, default='')
+    km_ingreso = Column(String(50), default='')
+    km_egreso = Column(String(50), default='')
+    inmoviliza_unidad = Column(Boolean, default=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'numero_ot': self.numero_ot or '',
+            'vehiculo_id': self.vehiculo_id,
+            'fecha_ingreso': self.fecha_ingreso or '',
+            'fecha_egreso': self.fecha_egreso or '',
+            'estado_ot': self.estado_ot or 'EN_REPARACION',
+            'prioridad': self.prioridad or 'NORMAL',
+            'sistema_afectado': self.sistema_afectado or 'MECANICA',
+            'mecanico_asignado': self.mecanico_asignado or '',
+            'motivo_ingreso': self.motivo_ingreso or '',
+            'trabajo_realizado': self.trabajo_realizado or '',
+            'repuestos_detalle': self.repuestos_detalle or '',
+            'km_ingreso': self.km_ingreso or '',
+            'km_egreso': self.km_egreso or '',
+            'inmoviliza_unidad': bool(self.inmoviliza_unidad)
+        }
+
+

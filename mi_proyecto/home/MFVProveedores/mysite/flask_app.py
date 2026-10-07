@@ -189,148 +189,133 @@ def index():
 
     return render_template('index.html', datos=datos, total=total, activos=activos, inactivos=inactivos, percent=percent, sync_status=sync_status)
 
-# --- 2. PUESTOS DE CONTROL (SISTEMA DE LLAVE NFC) ---
-@app.route('/puesto/<tipo>', methods=['GET', 'POST'])
-def puesto_control(tipo):
-    titulos = {
-        'actividad': 'CONTROL ACCESOS',
-        'combustible': 'SURTIDOR',
-        'fluidos': 'TALLER FLUIDOS',
-        'mantenimiento': 'TALLER MECÁNICO'
-    }
-    if request.method == 'POST':
-        llave = request.form.get('llave_nfc')
-        vehiculo = find_vehicle_by_key(llave)
-        if vehiculo:
-            return redirect(url_for(f'operacion_{tipo}', id_vehiculo=vehiculo['ID']))
-        else:
-            flash("❌ Llave NFC no reconocida")
+# --- 2. GESTIÓN OPERATIVA DE TALLER (ÓRDENES DE TRABAJO) ---
+@app.route('/taller', methods=['GET'])
+def taller():
+    ots_activas = db.get_ordenes_taller_activas()
+    flota = get_fleet_data()
+    total_en_taller = len(ots_activas)
+    en_reparacion = sum(1 for o in ots_activas if o.get('estado_ot') == 'EN_REPARACION')
+    esperando_repuesto = sum(1 for o in ots_activas if o.get('estado_ot') == 'ESPERANDO_REPUESTO')
+    urgentes = sum(1 for o in ots_activas if o.get('prioridad') == 'URGENTE')
 
-    return render_template('puesto_control.html', tipo=tipo, titulo=titulos.get(tipo, 'PUESTO'))
+    return render_template(
+        'taller.html',
+        ots=ots_activas,
+        flota=flota,
+        total=total_en_taller,
+        en_reparacion=en_reparacion,
+        esperando_repuesto=esperando_repuesto,
+        urgentes=urgentes
+    )
 
-# --- 3. OPERACIONES ---
+@app.route('/taller/ot/crear', methods=['POST'])
+def taller_crear_ot():
+    vid = request.form.get('vehiculo_id', '').strip()
+    motivo = request.form.get('motivo_ingreso', '').strip()
+    sistema = request.form.get('sistema_afectado', 'MECANICA').strip()
+    prioridad = request.form.get('prioridad', 'NORMAL').strip()
+    mecanico = request.form.get('mecanico_asignado', '').strip()
+    km = request.form.get('km_ingreso', '').strip()
 
-@app.route('/operacion/actividad/<id_vehiculo>', methods=['GET', 'POST'])
-def operacion_actividad(id_vehiculo):
-    v = find_vehicle_by_id(id_vehiculo)
-    if not v:
-        flash("Unidad no encontrada")
-        return redirect(url_for('puesto_control', tipo='actividad'))
+    if not vid or not motivo:
+        flash("Debe seleccionar un vehículo e ingresar el motivo de la falla.")
+        return redirect(url_for('taller'))
 
-    if request.method == 'POST':
-        accion = request.form['accion']
-        motivo = request.form.get('motivo', '')
-
-        if accion == 'REPUESTO_MENOR':
-            update_status_repuesto(id_vehiculo, 'PENDIENTE', nota=f"Acceso: {motivo}")
-            db.record_activity(get_hora_full_str(), id_vehiculo, 'NOVEDAD', f"Solicitud Repuesto: {motivo}", 'Supervisor Puerta')
-            flash("✅ Solicitud registrada. Unidad sigue ACTIVA.")
-        else:
-            db.record_activity(get_hora_full_str(), id_vehiculo, accion, motivo, 'Supervisor Puerta')
-        return redirect(url_for('puesto_control', tipo='actividad'))
-
-    return render_template('operacion_actividad.html', v=v)
-
-@app.route('/operacion/combustible/<id_vehiculo>', methods=['GET', 'POST'])
-def operacion_combustible(id_vehiculo):
-    v = find_vehicle_by_id(id_vehiculo)
-    if not v:
-        flash("Unidad no encontrada")
-        return redirect(url_for('puesto_control', tipo='combustible'))
-
-    if request.method == 'POST':
-        db.record_fuel(
-            get_hora_full_str(),
-            id_vehiculo,
-            request.form['tipo'],
-            request.form['litros'],
-            request.form['km']
+    try:
+        ot = db.crear_orden_trabajo(
+            vehiculo_id=vid,
+            motivo_ingreso=motivo,
+            sistema_afectado=sistema,
+            prioridad=prioridad,
+            mecanico_asignado=mecanico,
+            km_ingreso=km,
+            inmoviliza_unidad=True
         )
-        return redirect(url_for('puesto_control', tipo='combustible'))
+        flash(f"Orden de trabajo {ot['numero_ot']} generada con éxito para la unidad {vid}.")
+    except Exception as e:
+        flash(f"Error al generar orden de trabajo: {e}")
 
-    return render_template('operacion_combustible.html', v=v)
+    return redirect(url_for('taller'))
 
-@app.route('/operacion/fluidos/<id_vehiculo>', methods=['GET', 'POST'])
-def operacion_fluidos(id_vehiculo):
-    v = find_vehicle_by_id(id_vehiculo)
-    if not v:
-        flash("Unidad no encontrada")
-        return redirect(url_for('puesto_control', tipo='fluidos'))
+@app.route('/taller/ot/<int:ot_id>/estado', methods=['POST'])
+def taller_actualizar_ot(ot_id):
+    accion = request.form.get('accion', '')
+    if accion == 'REPUESTO':
+        repuestos = request.form.get('repuestos_detalle', '').strip()
+        db.actualizar_estado_ot(ot_id, nuevo_estado='ESPERANDO_REPUESTO', repuestos_detalle=repuestos)
+        flash("Solicitud de repuesto registrada.")
+    elif accion == 'AVANCE':
+        trabajo = request.form.get('trabajo_realizado', '').strip()
+        db.actualizar_estado_ot(ot_id, trabajo_realizado=trabajo)
+        flash("Avance de reparación guardado.")
+    elif accion == 'CAMBIAR_ESTADO':
+        nuevo_est = request.form.get('nuevo_estado', 'EN_REPARACION')
+        db.actualizar_estado_ot(ot_id, nuevo_estado=nuevo_est)
+        flash("Estado de la orden actualizado.")
 
-    if request.method == 'POST':
-        db.record_fluids(
-            get_fecha_str(),
-            id_vehiculo,
-            request.form['cat'],
-            request.form['subtipo'],
-            request.form['cant']
-        )
-        return redirect(url_for('puesto_control', tipo='fluidos'))
+    return redirect(url_for('taller'))
 
-    return render_template('operacion_fluidos.html', v=v)
+@app.route('/taller/ot/<int:ot_id>/cerrar', methods=['POST'])
+def taller_cerrar_ot(ot_id):
+    trabajo = request.form.get('trabajo_realizado', '').strip()
+    km = request.form.get('km_egreso', '').strip()
 
-@app.route('/operacion/mantenimiento/<id_vehiculo>', methods=['GET', 'POST'])
-def operacion_mantenimiento(id_vehiculo):
-    v = find_vehicle_by_id(id_vehiculo)
-    if not v:
-        flash("Unidad no encontrada")
-        return redirect(url_for('puesto_control', tipo='mantenimiento'))
+    res = db.cerrar_orden_trabajo(ot_id, trabajo_realizado=trabajo, km_egreso=km)
+    if res.get('success'):
+        ot = res.get('ot', {})
+        flash(f"Alta operativa otorgada. Unidad {ot.get('vehiculo_id')} reincorporada a la flota activa.")
+    else:
+        flash(f"Error al cerrar orden: {res.get('error')}")
 
-    estado_repuesto = get_status_repuesto(id_vehiculo)
-    rep_disponible = bool(estado_repuesto and estado_repuesto['ESTADO'] == 'DISPONIBLE')
+    return redirect(url_for('taller'))
 
-    if request.method == 'POST':
-        tipo = request.form['tipo']
-        detalle = request.form.get('detalle', '')
-        if tipo == 'EXTERNA':
-            update_status_repuesto(id_vehiculo, 'PENDIENTE', nota="Solicitado por mecánico")
-        elif tipo == 'RECEPCION_REPUESTO':
-            update_status_repuesto(id_vehiculo, None)
-            db.record_maintenance(get_fecha_str(), id_vehiculo, 'LOGISTICA', 'Repuesto recibido y verificado por taller.')
-            flash("✅ Repuesto recibido correctamente.")
-            return redirect(url_for('puesto_control', tipo='mantenimiento'))
-        if tipo != 'RECEPCION_REPUESTO':
-            db.record_maintenance(get_fecha_str(), id_vehiculo, tipo, detalle)
-        return redirect(url_for('puesto_control', tipo='mantenimiento'))
-
-    return render_template('operacion_mantenimiento.html', v=v, rep_disponible=rep_disponible)
-
-# --- 3b. VISUALIZACIÓN DE HISTORIALES ---
+# --- 3. VISUALIZACIÓN DE HISTORIALES ---
 @app.route('/historial/<tipo>/<id_vehiculo>')
 def ver_historial(tipo, id_vehiculo):
     config_historial = {
-        'ingresos':     {'titulo': 'CONTROL DE INGRESOS',       'icon': '📍'},
-        'actividad':    {'titulo': 'CONTROL DE INGRESOS',       'icon': '📍'},
-        'cronograma':   {'titulo': 'CRONOGRAMA PREVENTIVO',     'icon': '📅'},
-        'preventivos':  {'titulo': 'CRONOGRAMA PREVENTIVO',     'icon': '📅'},
-        'mantenimiento':{'titulo': 'HISTORIAL DE REPARACIONES','icon': '🔧'},
-        'reparaciones': {'titulo': 'HISTORIAL DE REPARACIONES','icon': '🔧'},
-        'imagenes':     {'titulo': 'IMÁGENES',                  'icon': '🖼️'},
-        'datos':        {'titulo': 'IMÁGENES',                  'icon': '🖼️'},
-        'combustible':  {'titulo': 'HISTORIAL DE COMBUSTIBLE',  'icon': '⛽'},
-        'fluidos':      {'titulo': 'HISTORIAL DE FLUIDOS',      'icon': '🛢️'}
+        'ingresos':     {'titulo': 'CONTROL DE INGRESOS'},
+        'actividad':    {'titulo': 'CONTROL DE INGRESOS'},
+        'cronograma':   {'titulo': 'CRONOGRAMA PREVENTIVO'},
+        'preventivos':  {'titulo': 'CRONOGRAMA PREVENTIVO'},
+        'mantenimiento':{'titulo': 'HISTORIAL DE REPARACIONES'},
+        'reparaciones': {'titulo': 'HISTORIAL DE REPARACIONES'},
+        'imagenes':     {'titulo': 'LEGAJO FOTOGRÁFICO'},
+        'datos':        {'titulo': 'LEGAJO FOTOGRÁFICO'},
+        'combustible':  {'titulo': 'HISTORIAL DE COMBUSTIBLE'},
+        'fluidos':      {'titulo': 'HISTORIAL DE FLUIDOS'}
     }
 
     cfg = config_historial.get(tipo.lower())
-    if not cfg: return "Tipo de historial no válido"
+    if not cfg:
+        return "Tipo de historial no válido", 404
 
+    vehiculo = find_vehicle_by_id(id_vehiculo)
     registros = db.get_history_records(tipo, id_vehiculo)
     columnas = [k for k in registros[0].keys() if k != 'ID'] if registros else []
 
-    return render_template('historial.html', tipo=tipo, id_vehiculo=id_vehiculo, titulo=cfg['titulo'], icon=cfg['icon'], registros=registros, columnas=columnas)
+    return render_template(
+        'historial.html',
+        tipo=tipo.lower(),
+        id_vehiculo=id_vehiculo,
+        vehiculo=vehiculo or {},
+        titulo=cfg['titulo'],
+        registros=registros,
+        columnas=columnas
+    )
 
 # --- 4. FICHA TÉCNICA ---
 @app.route('/ficha/<id_vehiculo>', methods=['GET', 'POST'])
 def ficha(id_vehiculo):
     vehiculo = find_vehicle_by_id(id_vehiculo)
-    if not vehiculo: return "<h1>Unidad no encontrada</h1>"
+    if not vehiculo:
+        return "<h1>Unidad no encontrada</h1>", 404
 
     if request.method == 'POST':
         if request.form.get('password') == CONF['PASSWORD_ADMIN']:
             session['admin_logged_in'] = True
 
     es_admin = session.get('admin_logged_in', False)
-    # Solo especificaciones técnicas relevantes pobladas (modelo NoSQL)
     specs = vehiculo.get('ESPECIFICACIONES', {})
     priv = {k: vehiculo.get(k, '') for k in CONF['CAMPOS_PRIVADOS'] if vehiculo.get(k, '').strip()}
 
@@ -344,7 +329,21 @@ def ficha(id_vehiculo):
         if status_data and status_data.get('TIPO_REGISTRO') == 'INACTIVIDAD':
             razon_inactividad = status_data.get('NOTA', 'Sin motivo especificado')
 
-    return render_template('ficha.html', v=vehiculo, specs=specs, priv=priv, admin=es_admin, est_cls=est_cls, dias=dias, razon_inactiva=razon_inactividad)
+    ot_activa = db.get_ot_activa_vehiculo(id_vehiculo)
+    historial_ots = db.get_historial_ot_vehiculo(id_vehiculo)
+
+    return render_template(
+        'ficha.html',
+        v=vehiculo,
+        specs=specs,
+        priv=priv,
+        admin=es_admin,
+        est_cls=est_cls,
+        dias=dias,
+        razon_inactiva=razon_inactividad,
+        ot_activa=ot_activa,
+        historial_ots=historial_ots
+    )
 
 @app.route('/logout')
 def logout():
@@ -401,38 +400,9 @@ def generate_qr(id_vehiculo):
     return send_file(img_io, mimetype='image/png', download_name=f'QR_{id_vehiculo}.png')
 
 # --- 5. GESTIÓN DE TALLER (ADMINISTRACIÓN) ---
-@app.route('/admin/taller', methods=['GET', 'POST'])
+@app.route('/admin/taller')
 def admin_taller():
-    if not session.get('admin_logged_in'):
-        if request.method == 'POST' and request.form.get('password') == CONF['PASSWORD_ADMIN']:
-            session['admin_logged_in'] = True
-        else:
-            return render_template('admin_taller_login.html')
-
-    if request.method == 'POST' and 'accion_admin' in request.form:
-        vid = request.form['id_vehiculo']
-        accion = request.form['accion_admin']
-        nota = request.form.get('nota_admin', '')
-        if accion == 'MARCAR_PEDIDO': update_status_repuesto(vid, 'PEDIDO', nota)
-        elif accion == 'MARCAR_DISPONIBLE': update_status_repuesto(vid, 'DISPONIBLE', nota)
-        elif accion == 'BORRAR': update_status_repuesto(vid, None)
-        return redirect(url_for('admin_taller'))
-
-    flota = get_fleet_data()
-    lista_final = []
-
-    for u in flota:
-        estado_rep = get_status_repuesto(u['ID'])
-        u['STATUS_DATA'] = estado_rep
-        is_broken = 'inactiv' in u.get('ESTADO','').lower() or 'reparaci' in u.get('ESTADO','').lower()
-        has_request = estado_rep is not None
-        if is_broken or has_request:
-            lista_final.append(u)
-
-    c_activas = sum(1 for u in lista_final if 'inactiv' not in u.get('ESTADO','').lower() and 'reparaci' not in u.get('ESTADO','').lower())
-    c_inactivas = len(lista_final) - c_activas
-
-    return render_template('admin_taller.html', lista_final=lista_final, c_activas=c_activas, c_inactivas=c_inactivas)
+    return redirect(url_for('taller'))
 
 # --- 6. AUDITOR DE MANTENIMIENTOS ---
 @app.route('/auditor', methods=['GET', 'POST'])
@@ -466,21 +436,6 @@ def auditoria_service(id_vehiculo):
 
     return render_template('auditoria_service.html', v=v)
 
-# --- 7. TALLER MECÁNICO CENTRALIZADO ---
-@app.route('/taller/mecanico', methods=['GET', 'POST'])
-def taller_mecanico():
-    flota = get_fleet_data()
-
-    if request.method == 'POST' and 'nfc_taller' in request.form:
-        v = find_vehicle_by_key(request.form['nfc_taller'])
-        if v: return redirect(url_for('taller_unidad', id_vehiculo=v['ID']))
-        else: flash("❌ Llave no reconocida.")
-
-    return render_template('taller_mecanico.html', flota=flota)
-
-@app.route('/taller/unidad/<id_vehiculo>', methods=['GET', 'POST'])
-def taller_unidad(id_vehiculo):
-    return render_template('taller_unidad.html', id_vehiculo=id_vehiculo)
 
 # --- 8. RECORTADOR INTELIGENTE DE PDF ---
 @app.route('/recortar')
