@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Panel de Taller Mecánico - Obras Públicas{% endblock %}
+{% block title %}Panel de Taller Mecánico - Operario{% endblock %}
 
 {% block head %}
 <style>
@@ -19,8 +19,8 @@
         color: #fff;
         border: 2px solid #000;
         border-radius: 8px;
-        padding: 14px 24px;
-        font-size: 15px;
+        padding: 13px 22px;
+        font-size: 14px;
         font-weight: 900;
         text-transform: uppercase;
         cursor: pointer;
@@ -69,8 +69,8 @@
         border: 2px solid #000;
         border-radius: 12px;
         overflow: hidden;
-        margin-bottom: 16px;
-        min-height: 95px;
+        margin-bottom: 18px;
+        min-height: 110px;
         box-shadow: 0 4px 0 rgba(0,0,0,0.1);
         transition: transform 0.15s ease;
     }
@@ -97,6 +97,8 @@
     .tag-normal { background: #e8f5e9; color: #2e7d32; border-color: #2e7d32; }
     .tag-repuesto { background: #fff8e1; color: #f57f17; border-color: #f57f17; }
     .tag-dias { background: #f5f5f5; color: #424242; border-color: #9e9e9e; }
+    .tag-tramite { background: #e3f2fd; color: #1565c0; border-color: #90caf9; }
+    .tag-recibido { background: #e8f5e9; color: #2e7d32; border-color: #a5d6a7; }
 
     .btn-taller-action {
         border: 2px solid #000;
@@ -127,7 +129,33 @@
         color: #fff;
     }
 
-    /* MODALES INSTITUCIONALES */
+    .repuesto-item-box {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #fafafa;
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        padding: 6px 12px;
+        margin-top: 6px;
+        font-size: 12px;
+    }
+    .btn-recibir-small {
+        background: #28a745;
+        color: white;
+        border: 1px solid #1e7e34;
+        border-radius: 4px;
+        padding: 4px 8px;
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+        cursor: pointer;
+    }
+    .btn-recibir-small:hover {
+        background: #218838;
+    }
+
+    /* MODALES */
     .modal-overlay {
         position: fixed;
         top: 0; left: 0;
@@ -144,7 +172,7 @@
         border: 3px solid #000;
         border-radius: 12px;
         width: 90%;
-        max-width: 580px;
+        max-width: 600px;
         max-height: 90vh;
         overflow-y: auto;
         padding: 25px;
@@ -238,17 +266,20 @@
         <div class="taller-header-bar">
             <div>
                 <h1 style="margin:0; font-size:26px; color:var(--primary); font-weight:900; letter-spacing:-0.5px;">
-                    TALLER MUNICIPAL - ÓRDENES DE TRABAJO
+                    PANEL DE TALLER - PISO DE GALPÓN
                 </h1>
                 <div style="font-size:13px; color:#555; font-weight:700; margin-top:4px;">
-                    DIRECCIÓN DE FLOTA PESADA Y MANTENIMIENTO
+                    OPERACIÓN DIRECTA Y REGISTRO MECÁNICO
                 </div>
             </div>
-            <div style="display:flex; gap:10px; align-items:center;">
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                 <button onclick="abrirModalIngreso()" class="btn-ingreso-taller">
-                    + INGRESAR UNIDAD AL TALLER
+                    + INGRESAR UNIDAD
                 </button>
-                <a href="/" class="btn-taller-action" style="padding:13px 18px;">
+                <a href="/admin/taller" class="btn-taller-action" style="padding:12px 16px; background:#4a5568; color:white; border-color:#2d3748;">
+                    SEGUIMIENTO ADMINISTRATIVO
+                </a>
+                <a href="/" class="btn-taller-action" style="padding:12px 16px;">
                     VOLVER AL PANEL
                 </a>
             </div>
@@ -268,7 +299,7 @@
         <div class="stats-row">
             <div class="stat-box" style="border-left:5px solid #000;">
                 <span class="stat-val" style="color:#000;">{{ total }}</span>
-                <span style="font-size:11px; font-weight:800; text-transform:uppercase; color:#666;">Total en Taller</span>
+                <span style="font-size:11px; font-weight:800; text-transform:uppercase; color:#666;">En Taller</span>
             </div>
             <div class="stat-box" style="border-left:5px solid #007bff;">
                 <span class="stat-val" style="color:#007bff;">{{ en_reparacion }}</span>
@@ -276,7 +307,7 @@
             </div>
             <div class="stat-box" style="border-left:5px solid #ffc107;">
                 <span class="stat-val" style="color:#d39e00;">{{ esperando_repuesto }}</span>
-                <span style="font-size:11px; font-weight:800; text-transform:uppercase; color:#666;">Falta Repuesto</span>
+                <span style="font-size:11px; font-weight:800; text-transform:uppercase; color:#666;">Esperando Repuestos</span>
             </div>
             <div class="stat-box" style="border-left:5px solid #dc3545;">
                 <span class="stat-val" style="color:#dc3545;">{{ urgentes }}</span>
@@ -284,12 +315,12 @@
             </div>
         </div>
 
-        <!-- BARRA DE BÚSQUEDA Y FILTROS -->
+        <!-- BÚSQUEDA Y FILTROS -->
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px; margin-bottom:15px;">
             <div class="filter-pills" style="margin-bottom:0;">
                 <button class="filter-pill active" onclick="filtrarEstado('TODOS', this)">TODOS ({{ total }})</button>
                 <button class="filter-pill" onclick="filtrarEstado('EN_REPARACION', this)">EN REPARACIÓN ({{ en_reparacion }})</button>
-                <button class="filter-pill" onclick="filtrarEstado('ESPERANDO_REPUESTO', this)">FALTA REPUESTO ({{ esperando_repuesto }})</button>
+                <button class="filter-pill" onclick="filtrarEstado('ESPERANDO_REPUESTO', this)">ESPERANDO REPUESTOS ({{ esperando_repuesto }})</button>
                 <button class="filter-pill" onclick="filtrarEstado('URGENTE', this)">URGENTES ({{ urgentes }})</button>
             </div>
             <div style="flex:1; min-width:240px; max-width:380px;">
@@ -297,7 +328,7 @@
             </div>
         </div>
 
-        <!-- LISTADO DE TARJETAS DE UNIDADES EN TALLER -->
+        <!-- TARJETAS DE UNIDADES EN TALLER -->
         <div id="contenedorTarjetas">
             {% if ots %}
                 {% for ot in ots %}
@@ -312,18 +343,18 @@
                          data-prioridad="{{ ot.prioridad }}"
                          data-texto="{{ ot.vehiculo_id }} {{ ot.dominio }} {{ ot.marca }} {{ ot.modelo }} {{ ot.motivo_ingreso }} {{ ot.mecanico_asignado }} {{ ot.numero_ot }}">
                         
-                        <!-- BARRA LATERAL DE ESTADO -->
+                        <!-- BARRA LATERAL -->
                         <div class="taller-bar {{ bar_class }}" style="width:22px; flex-shrink:0;"></div>
 
-                        <!-- IDENTIFICADOR DE UNIDAD -->
+                        <!-- ID UNIDAD -->
                         <div class="taller-id" style="min-width:110px;">
                             <a href="/ficha/{{ ot.vehiculo_id }}" target="_blank" style="color:#000; text-decoration:none;">
                                 {{ ot.vehiculo_id }}
                             </a>
                         </div>
 
-                        <!-- INFORMACIÓN DE LA REPARACIÓN -->
-                        <div class="taller-info" style="padding:12px 15px;">
+                        <!-- INFORMACIÓN DE REPARACIÓN -->
+                        <div class="taller-info" style="padding:14px 18px;">
                             <div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-bottom:4px;">
                                 <span class="taller-type" style="font-size:13px;">{{ ot.tipo_vehiculo }} {{ ot.marca }} {{ ot.modelo }}</span>
                                 {% if ot.dominio %}
@@ -336,30 +367,66 @@
                                 </span>
                             </div>
 
-                            <div style="font-size:14px; font-weight:800; color:#111; margin-bottom:4px;">
+                            <div style="font-size:14px; font-weight:800; color:#111; margin-bottom:6px;">
                                 FALLA: {{ ot.motivo_ingreso }}
                             </div>
 
-                            {% if ot.repuestos_detalle %}
-                                <div style="font-size:12px; font-weight:800; color:#b78103; margin-bottom:4px; background:#fffdf2; padding:4px 8px; border-left:3px solid #ffc107;">
-                                    REPUESTO REQUERIDO: {{ ot.repuestos_detalle }}
+                            <!-- ÚLTIMO AVANCE SECUENCIAL -->
+                            {% if ot.ultimo_avance %}
+                                <div style="font-size:12px; font-weight:700; color:#1e3a8a; background:#eff6ff; border-left:3px solid #3b82f6; padding:5px 8px; margin-bottom:6px; border-radius:3px;">
+                                    <strong>ÚLTIMO AVANCE:</strong> [{{ ot.ultimo_avance.fecha_hora }}] {{ ot.ultimo_avance.descripcion }} ({{ ot.ultimo_avance.mecanico }})
                                 </div>
                             {% endif %}
 
-                            {% if ot.trabajo_realizado %}
-                                <div style="font-size:12px; font-weight:700; color:#2e7d32; margin-bottom:4px;">
-                                    AVANCE: {{ ot.trabajo_realizado }}
+                            <!-- LISTA DE REPUESTOS ENLISTADOS -->
+                            {% if ot.repuestos %}
+                                <div style="margin-top:6px; margin-bottom:6px;">
+                                    <div style="font-size:11px; font-weight:800; color:#555; text-transform:uppercase;">
+                                        Repuestos Requeridos ({{ ot.repuestos|length }}):
+                                    </div>
+                                    {% for r in ot.repuestos %}
+                                        <div class="repuesto-item-box">
+                                            <div>
+                                                <strong>{{ r.descripcion }}</strong> (x{{ r.cantidad }})
+                                                {% if r.estado == 'SOLICITADO' %}
+                                                    <span class="taller-meta-tag tag-dias">SOLICITADO ({{ r.fecha_solicitud }})</span>
+                                                {% elif r.estado == 'EN_TRAMITE' %}
+                                                    <span class="taller-meta-tag tag-tramite">EN TRÁMITE DE COMPRA</span>
+                                                    {% if r.datos_compra %}<small style="color:#555;">[{{ r.datos_compra }}]</small>{% endif %}
+                                                {% elif r.estado == 'RECIBIDO' %}
+                                                    <span class="taller-meta-tag tag-recibido">RECIBIDO EN TALLER</span>
+                                                    {% if r.remito_recepcion %}<small style="color:#555;">[Remito: {{ r.remito_recepcion }}]</small>{% endif %}
+                                                {% endif %}
+                                            </div>
+
+                                            <div>
+                                                {% if r.estado != 'RECIBIDO' %}
+                                                    <button onclick="abrirModalRecibirRepuesto('{{ r.id }}', '{{ r.descripcion }}', '{{ ot.numero_ot }}', '{{ ot.vehiculo_id }}')" class="btn-recibir-small">
+                                                        REGISTRAR RECEPCIÓN
+                                                    </button>
+                                                {% else %}
+                                                    <span style="font-size:11px; font-weight:800; color:#2e7d32;">EN GALPÓN</span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+
+                                    {% if ot.repuestos_completos %}
+                                        <div style="background:#e8f5e9; color:#1b5e20; padding:4px 8px; border-radius:4px; font-size:11px; font-weight:800; margin-top:4px;">
+                                            REPUESTOS COMPLETOS EN TALLER - LISTO PARA MONTAJE
+                                        </div>
+                                    {% endif %}
                                 </div>
                             {% endif %}
 
-                            <div style="margin-top:4px;">
+                            <div style="margin-top:6px;">
                                 <span class="taller-meta-tag tag-dias">N° {{ ot.numero_ot }}</span>
                                 <span class="taller-meta-tag tag-dias">{{ ot.dias_en_taller }} DÍAS EN TALLER</span>
                                 <span class="taller-meta-tag tag-dias">SISTEMA: {{ ot.sistema_afectado }}</span>
                                 {% if es_urgente %}
-                                    <span class="taller-meta-tag tag-urgente">PRIORIDAD: URGENTE</span>
+                                    <span class="taller-meta-tag tag-urgente">URGENTE</span>
                                 {% else %}
-                                    <span class="taller-meta-tag tag-normal">PRIORIDAD: NORMAL</span>
+                                    <span class="taller-meta-tag tag-normal">NORMAL</span>
                                 {% endif %}
                                 {% if ot.mecanico_asignado %}
                                     <span class="taller-meta-tag tag-dias">MECÁNICO: {{ ot.mecanico_asignado }}</span>
@@ -367,13 +434,16 @@
                             </div>
                         </div>
 
-                        <!-- ACCIONES OPERATIVAS -->
-                        <div class="taller-actions" style="display:flex; align-items:center; gap:8px; padding:0 20px;">
-                            <button onclick="abrirModalRepuesto('{{ ot.id }}', '{{ ot.numero_ot }}', '{{ ot.vehiculo_id }}', '{{ ot.repuestos_detalle }}')" class="btn-taller-action" title="Solicitar repuestos">
-                                REPUESTO
+                        <!-- ACCIONES DIRECTAS EN TARJETA -->
+                        <div class="taller-actions" style="display:flex; flex-direction:column; justify-content:center; gap:6px; padding:12px 18px;">
+                            <button onclick="abrirModalAvance('{{ ot.id }}', '{{ ot.numero_ot }}', '{{ ot.vehiculo_id }}')" class="btn-taller-action" title="Agregar avance técnico con fecha y hora">
+                                + AVANCE
                             </button>
-                            <button onclick="abrirModalAvance('{{ ot.id }}', '{{ ot.numero_ot }}', '{{ ot.vehiculo_id }}', '{{ ot.trabajo_realizado }}')" class="btn-taller-action" title="Anotar avance técnico">
-                                AVANCE
+                            <button onclick="abrirModalSolicitarRepuesto('{{ ot.id }}', '{{ ot.numero_ot }}', '{{ ot.vehiculo_id }}')" class="btn-taller-action" style="background:#fff3cd; border-color:#856404;" title="Pedir repuestos en lista">
+                                + PEDIR REPUESTO
+                            </button>
+                            <button onclick="abrirModalCronologia('{{ ot.id }}', '{{ ot.numero_ot }}', '{{ ot.vehiculo_id }}')" class="btn-taller-action" title="Ver cronología secuencial de avances">
+                                CRONOLOGÍA ({{ ot.avances_count }})
                             </button>
                             <button onclick="abrirModalAlta('{{ ot.id }}', '{{ ot.numero_ot }}', '{{ ot.vehiculo_id }}')" class="btn-taller-action btn-taller-alta" title="Dar de alta y reintegrar a flota activa">
                                 ALTA OPERATIVA
@@ -399,7 +469,7 @@
     </div>
 </div>
 
-<!-- MODAL 1: INGRESO DE UNIDAD AL TALLER -->
+<!-- MODAL 1: INGRESO DE UNIDAD -->
 <div id="modalIngreso" class="modal-overlay">
     <div class="modal-box">
         <div class="modal-header">
@@ -464,7 +534,35 @@
     </div>
 </div>
 
-<!-- MODAL 2: SOLICITUD DE REPUESTO -->
+<!-- MODAL 2: AGREGAR AVANCE SECUENCIAL CON FECHA Y HORA -->
+<div id="modalAvance" class="modal-overlay">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3 style="margin:0; font-size:18px; font-weight:900; color:var(--primary);">
+                REGISTRAR AVANCE TÉCNICO - <span id="avanceTituloOT"></span>
+            </h3>
+            <button class="modal-close" onclick="cerrarModales()">&times;</button>
+        </div>
+        <form id="formAvance" method="POST" action="">
+            <div class="form-group">
+                <label class="form-label">Tarea / Trabajo Realizado:</label>
+                <textarea name="descripcion" rows="4" class="form-control" placeholder="Detalle la tarea efectuada en este momento..." required></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Mecánico Interviniente (Opcional):</label>
+                <input type="text" name="mecanico" class="form-control" placeholder="Nombre del mecánico que ejecutó la tarea">
+            </div>
+            <p style="font-size:12px; color:#666; margin-bottom:15px;">
+                El avance se guardará con la fecha y hora oficial exacta de forma secuencial.
+            </p>
+            <button type="submit" class="btn-modal-submit">
+                GUARDAR AVANCE
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL 3: SOLICITAR REPUESTO INDIVIDUAL / EN LISTA -->
 <div id="modalRepuesto" class="modal-overlay">
     <div class="modal-box">
         <div class="modal-header">
@@ -474,44 +572,85 @@
             <button class="modal-close" onclick="cerrarModales()">&times;</button>
         </div>
         <form id="formRepuesto" method="POST" action="">
-            <input type="hidden" name="accion" value="REPUESTO">
             <div class="form-group">
-                <label class="form-label">Detalle del Repuesto o Pieza Faltante:</label>
-                <textarea id="repuestoTexto" name="repuestos_detalle" rows="4" class="form-control" placeholder="Ej: Bomba de agua para motor Perkins, kit de retenes..." required></textarea>
+                <label class="form-label">Nombre / Descripción de la Pieza:</label>
+                <input type="text" name="descripcion" class="form-control" placeholder="Ej: Bomba hidráulica de engranajes, retén de bancada..." required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Cantidad:</label>
+                <input type="number" name="cantidad" value="1" min="1" class="form-control" required style="width:120px;">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Observaciones / Especificaciones (Opcional):</label>
+                <textarea name="observaciones" rows="2" class="form-control" placeholder="Código de pieza, medidas o marca de motor si aplica..."></textarea>
             </div>
             <p style="font-size:12px; color:#666; margin-bottom:15px;">
-                Al registrar la solicitud, la unidad pasará automáticamente al estado <strong>ESPERANDO REPUESTO</strong> y se notificará en la planilla y ficha técnica.
+                La solicitud quedará registrada en estado <strong>SOLICITADO</strong> para que el área administrativa gestione la compra.
             </p>
             <button type="submit" class="btn-modal-submit" style="background:#ffc107; color:#000;">
-                REGISTRAR SOLICITUD DE REPUESTO
+                CONFIRMAR SOLICITUD DE REPUESTO
             </button>
         </form>
     </div>
 </div>
 
-<!-- MODAL 3: ANOTAR AVANCE TÉCNICO -->
-<div id="modalAvance" class="modal-overlay">
-    <div class="modal-box">
+<!-- MODAL 4: CONFIRMAR RECEPCIÓN FÍSICA DE REPUESTO (OPERARIO EN TALLER) -->
+<div id="modalRecibirRepuesto" class="modal-overlay">
+    <div class="modal-box" style="border-color:#28a745;">
         <div class="modal-header">
-            <h3 style="margin:0; font-size:18px; font-weight:900; color:var(--primary);">
-                REGISTRAR AVANCE - <span id="avanceTituloOT"></span>
+            <h3 style="margin:0; font-size:18px; font-weight:900; color:#28a745;">
+                CONFIRMAR RECEPCIÓN DE REPUESTO EN TALLER
             </h3>
             <button class="modal-close" onclick="cerrarModales()">&times;</button>
         </div>
-        <form id="formAvance" method="POST" action="">
-            <input type="hidden" name="accion" value="AVANCE">
-            <div class="form-group">
-                <label class="form-label">Tareas Realizadas / Novedades:</label>
-                <textarea id="avanceTexto" name="trabajo_realizado" rows="4" class="form-control" placeholder="Ej: Se desmontó tapa de cilindro, se envió a rectificadora..." required></textarea>
+        <form id="formRecibirRepuesto" method="POST" action="">
+            <div style="background:#f4fbf5; border:1px solid #c8e6c9; padding:12px; border-radius:6px; margin-bottom:15px;">
+                <div style="font-size:14px; font-weight:800; color:#2e7d32;" id="recibirNombrePieza"></div>
+                <div style="font-size:12px; color:#555; margin-top:2px;" id="recibirContextoOT"></div>
             </div>
-            <button type="submit" class="btn-modal-submit">
-                GUARDAR AVANCE
+
+            <div class="form-group">
+                <label class="form-label">N° de Remito o Comprobante de Entrega (Opcional):</label>
+                <input type="text" name="remito" class="form-control" placeholder="Ej: Remito 0001-0045231">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Observaciones al Recibir (Opcional):</label>
+                <input type="text" name="observaciones" class="form-control" placeholder="Ej: Recibido en mano en galpón central">
+            </div>
+
+            <div style="font-size:12px; color:#2e7d32; font-weight:700; margin-bottom:15px;">
+                Al confirmar, se registrará la fecha y hora oficial en que el repuesto ingresó físicamente al taller.
+            </div>
+
+            <button type="submit" class="btn-modal-submit" style="background:#28a745;">
+                CONFIRMAR RECEPCIÓN FÍSICA
             </button>
         </form>
     </div>
 </div>
 
-<!-- MODAL 4: ALTA OPERATIVA (CIERRE DE OT) -->
+<!-- MODAL 5: CRONOLOGÍA DE AVANCES SECUENCIALES -->
+<div id="modalCronologia" class="modal-overlay">
+    <div class="modal-box" style="max-width:700px;">
+        <div class="modal-header">
+            <h3 style="margin:0; font-size:18px; font-weight:900; color:var(--primary);">
+                CRONOLOGÍA DE AVANCES - <span id="cronoTituloOT"></span>
+            </h3>
+            <button class="modal-close" onclick="cerrarModales()">&times;</button>
+        </div>
+        <div id="cronoContenido" style="max-height:60vh; overflow-y:auto;">
+            <!-- Contenido cargado dinámicamente -->
+        </div>
+        <div style="margin-top:20px; text-align:right;">
+            <button onclick="cerrarModales()" class="btn-taller-action" style="padding:10px 18px;">
+                CERRAR
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL 6: ALTA OPERATIVA (CIERRE DE OT) -->
 <div id="modalAlta" class="modal-overlay">
     <div class="modal-box" style="border-color:#28a745;">
         <div class="modal-header">
@@ -546,22 +685,67 @@
 
 {% block scripts %}
 <script>
+    var dataOTs = {
+        {% for ot in ots %}
+            "{{ ot.id }}": {
+                "numero_ot": "{{ ot.numero_ot }}",
+                "vehiculo_id": "{{ ot.vehiculo_id }}",
+                "avances": {{ ot.avances|tojson }}
+            }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    };
+
     function abrirModalIngreso() {
         document.getElementById('modalIngreso').style.display = 'flex';
     }
 
-    function abrirModalRepuesto(id, ot, unidad, detalle) {
+    function abrirModalAvance(id, ot, unidad) {
+        document.getElementById('avanceTituloOT').innerText = ot + ' (' + unidad + ')';
+        document.getElementById('formAvance').action = '/taller/ot/' + id + '/avance';
+        document.getElementById('modalAvance').style.display = 'flex';
+    }
+
+    function abrirModalSolicitarRepuesto(id, ot, unidad) {
         document.getElementById('repuestoTituloOT').innerText = ot + ' (' + unidad + ')';
-        document.getElementById('repuestoTexto').value = detalle || '';
-        document.getElementById('formRepuesto').action = '/taller/ot/' + id + '/estado';
+        document.getElementById('formRepuesto').action = '/taller/ot/' + id + '/repuesto/solicitar';
         document.getElementById('modalRepuesto').style.display = 'flex';
     }
 
-    function abrirModalAvance(id, ot, unidad, detalle) {
-        document.getElementById('avanceTituloOT').innerText = ot + ' (' + unidad + ')';
-        document.getElementById('avanceTexto').value = detalle || '';
-        document.getElementById('formAvance').action = '/taller/ot/' + id + '/estado';
-        document.getElementById('modalAvance').style.display = 'flex';
+    function abrirModalRecibirRepuesto(repuestoId, descripcion, ot, unidad) {
+        document.getElementById('recibirNombrePieza').innerText = descripcion;
+        document.getElementById('recibirContextoOT').innerText = 'Orden de Trabajo: ' + ot + ' | Unidad: ' + unidad;
+        document.getElementById('formRecibirRepuesto').action = '/taller/repuesto/' + repuestoId + '/recibir';
+        document.getElementById('modalRecibirRepuesto').style.display = 'flex';
+    }
+
+    function abrirModalCronologia(id, ot, unidad) {
+        document.getElementById('cronoTituloOT').innerText = ot + ' (' + unidad + ')';
+        var container = document.getElementById('cronoContenido');
+        container.innerHTML = '';
+
+        var otInfo = dataOTs[id];
+        if (otInfo && otInfo.avances && otInfo.avances.length > 0) {
+            otInfo.avances.forEach(function(av, index) {
+                var item = document.createElement('div');
+                item.style.padding = '12px';
+                item.style.borderBottom = '1px solid #eee';
+                item.style.borderLeft = '4px solid var(--primary)';
+                item.style.marginBottom = '8px';
+                item.style.background = '#fcfcfc';
+
+                item.innerHTML = '<div style="display:flex; justify-content:space-between; font-size:12px; color:#555; font-weight:800; margin-bottom:4px;">' +
+                    '<span>PASO #' + (index + 1) + ' - ' + av.fecha_hora + '</span>' +
+                    '<span>RESPONSABLE: ' + av.mecanico + '</span>' +
+                    '</div>' +
+                    '<div style="font-size:14px; font-weight:700; color:#111;">' + av.descripcion + '</div>';
+
+                container.appendChild(item);
+            });
+        } else {
+            container.innerHTML = '<p style="text-align:center; color:#777; padding:20px;">Sin avances registrados aún para esta orden.</p>';
+        }
+
+        document.getElementById('modalCronologia').style.display = 'flex';
     }
 
     function abrirModalAlta(id, ot, unidad) {

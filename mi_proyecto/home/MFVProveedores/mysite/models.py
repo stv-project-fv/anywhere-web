@@ -267,4 +267,55 @@ class OrdenTrabajo(Base):
             'inmoviliza_unidad': bool(self.inmoviliza_unidad)
         }
 
+class AvanceOT(Base):
+    __tablename__ = 'avances_ot'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    orden_trabajo_id = Column(Integer, ForeignKey('ordenes_trabajo.id'), nullable=False, index=True)
+    fecha_hora = Column(String(50), nullable=False)
+    mecanico = Column(String(100), default='')
+    descripcion = Column(Text, nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'orden_trabajo_id': self.orden_trabajo_id,
+            'fecha_hora': self.fecha_hora,
+            'mecanico': self.mecanico or 'Taller',
+            'descripcion': self.descripcion or ''
+        }
+
+class RepuestoOT(Base):
+    __tablename__ = 'repuestos_ot'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    orden_trabajo_id = Column(Integer, ForeignKey('ordenes_trabajo.id'), nullable=False, index=True)
+    descripcion = Column(String(255), nullable=False)
+    cantidad = Column(Integer, default=1)
+    estado = Column(String(50), default='SOLICITADO', index=True)
+    
+    fecha_solicitud = Column(String(50), nullable=False)
+    fecha_tramite = Column(String(50), default='')
+    fecha_recepcion = Column(String(50), default='')
+    
+    datos_compra = Column(String(150), default='')
+    remito_recepcion = Column(String(100), default='')
+    observaciones = Column(Text, default='')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'orden_trabajo_id': self.orden_trabajo_id,
+            'descripcion': self.descripcion,
+            'cantidad': self.cantidad,
+            'estado': self.estado,
+            'fecha_solicitud': self.fecha_solicitud,
+            'fecha_tramite': self.fecha_tramite or '',
+            'fecha_recepcion': self.fecha_recepcion or '',
+            'datos_compra': self.datos_compra or '',
+            'remito_recepcion': self.remito_recepcion or '',
+            'observaciones': self.observaciones or ''
+        }
+
+
 

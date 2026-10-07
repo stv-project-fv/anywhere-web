@@ -25,13 +25,26 @@
                         <div style="font-size:13px; color:#333; margin-top:4px;">
                             <strong>Falla reportada:</strong> {{ ot_activa.motivo_ingreso }}
                             | <strong>Tiempo en taller:</strong> {{ ot_activa.dias_en_taller }} días
-                            {% if ot_activa.repuestos_detalle %}
-                                | <strong>Repuesto:</strong> {{ ot_activa.repuestos_detalle }}
-                            {% endif %}
                             {% if ot_activa.mecanico_asignado %}
                                 | <strong>Mecánico:</strong> {{ ot_activa.mecanico_asignado }}
                             {% endif %}
                         </div>
+                        {% if ot_activa.avances %}
+                            {% set ult = ot_activa.avances[-1] %}
+                            <div style="font-size:12px; color:#1e40af; margin-top:4px; background:#eff6ff; padding:3px 8px; border-radius:4px; display:inline-block;">
+                                <strong>Último Avance:</strong> [{{ ult.fecha_hora }}] {{ ult.descripcion }} ({{ ult.mecanico }})
+                            </div>
+                        {% endif %}
+                        {% if ot_activa.repuestos %}
+                            <div style="font-size:12px; margin-top:4px;">
+                                <strong>Repuestos requeridos:</strong>
+                                {% for r in ot_activa.repuestos %}
+                                    <span style="background:#fff; border:1px solid #ccc; padding:1px 6px; border-radius:3px; margin-right:4px; font-weight:700;">
+                                        {{ r.descripcion }} [{{ r.estado }}]
+                                    </span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
                     </div>
                     <div>
                         <a href="/taller" class="btn-action" style="background:#856404; font-weight:800; padding:8px 14px; border-radius:4px; font-size:12px;">

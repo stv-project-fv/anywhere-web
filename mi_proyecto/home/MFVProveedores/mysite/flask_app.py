@@ -238,21 +238,52 @@ def taller_crear_ot():
 
     return redirect(url_for('taller'))
 
-@app.route('/taller/ot/<int:ot_id>/estado', methods=['POST'])
-def taller_actualizar_ot(ot_id):
-    accion = request.form.get('accion', '')
-    if accion == 'REPUESTO':
-        repuestos = request.form.get('repuestos_detalle', '').strip()
-        db.actualizar_estado_ot(ot_id, nuevo_estado='ESPERANDO_REPUESTO', repuestos_detalle=repuestos)
-        flash("Solicitud de repuesto registrada.")
-    elif accion == 'AVANCE':
-        trabajo = request.form.get('trabajo_realizado', '').strip()
-        db.actualizar_estado_ot(ot_id, trabajo_realizado=trabajo)
-        flash("Avance de reparación guardado.")
-    elif accion == 'CAMBIAR_ESTADO':
-        nuevo_est = request.form.get('nuevo_estado', 'EN_REPARACION')
-        db.actualizar_estado_ot(ot_id, nuevo_estado=nuevo_est)
-        flash("Estado de la orden actualizado.")
+@app.route('/taller/ot/<int:ot_id>/avance', methods=['POST'])
+def taller_agregar_avance(ot_id):
+    descripcion = request.form.get('descripcion', '').strip()
+    mecanico = request.form.get('mecanico', '').strip()
+
+    if not descripcion:
+        flash("Debe ingresar la descripción del avance técnico.")
+        return redirect(url_for('taller'))
+
+    res = db.agregar_avance_ot(ot_id, descripcion, mecanico)
+    if res.get('success'):
+        flash("Avance técnico registrado con fecha y hora.")
+    else:
+        flash(f"Error al registrar avance: {res.get('error')}")
+
+    return redirect(url_for('taller'))
+
+@app.route('/taller/ot/<int:ot_id>/repuesto/solicitar', methods=['POST'])
+def taller_solicitar_repuesto(ot_id):
+    descripcion = request.form.get('descripcion', '').strip()
+    cantidad = request.form.get('cantidad', 1)
+    observaciones = request.form.get('observaciones', '').strip()
+
+    if not descripcion:
+        flash("Debe especificar la descripción del repuesto requerido.")
+        return redirect(url_for('taller'))
+
+    res = db.agregar_repuesto_ot(ot_id, descripcion, cantidad, observaciones)
+    if res.get('success'):
+        flash(f"Repuesto '{descripcion}' solicitado exitosamente.")
+    else:
+        flash(f"Error al solicitar repuesto: {res.get('error')}")
+
+    return redirect(url_for('taller'))
+
+@app.route('/taller/repuesto/<int:repuesto_id>/recibir', methods=['POST'])
+def taller_recibir_repuesto(repuesto_id):
+    remito = request.form.get('remito', '').strip()
+    observaciones = request.form.get('observaciones', '').strip()
+
+    res = db.confirmar_recepcion_repuesto(repuesto_id, remito, observaciones)
+    if res.get('success'):
+        rep = res.get('repuesto', {})
+        flash(f"Recepción física del repuesto '{rep.get('descripcion')}' confirmada en taller.")
+    else:
+        flash(f"Error al confirmar recepción: {res.get('error')}")
 
     return redirect(url_for('taller'))
 
@@ -269,6 +300,7 @@ def taller_cerrar_ot(ot_id):
         flash(f"Error al cerrar orden: {res.get('error')}")
 
     return redirect(url_for('taller'))
+
 
 # --- 3. VISUALIZACIÓN DE HISTORIALES ---
 @app.route('/historial/<tipo>/<id_vehiculo>')
@@ -399,10 +431,34 @@ def generate_qr(id_vehiculo):
     img_io.seek(0)
     return send_file(img_io, mimetype='image/png', download_name=f'QR_{id_vehiculo}.png')
 
-# --- 5. GESTIÓN DE TALLER (ADMINISTRACIÓN) ---
+# --- 5. GESTIÓN Y SEGUIMIENTO DE TALLER (ADMINISTRACIÓN) ---
 @app.route('/admin/taller')
 def admin_taller():
-    return redirect(url_for('taller'))
+    seguimiento = db.get_seguimiento_admin_taller()
+    return render_template(
+        'admin_taller.html',
+        ots=seguimiento['ots'],
+        repuestos=seguimiento['repuestos'],
+        total_ots=seguimiento['total_ots'],
+        total_repuestos=seguimiento['total_repuestos'],
+        repuestos_solicitados=seguimiento['repuestos_solicitados'],
+        repuestos_en_tramite=seguimiento['repuestos_en_tramite'],
+        repuestos_recibidos=seguimiento['repuestos_recibidos']
+    )
+
+@app.route('/admin/repuesto/<int:repuesto_id>/tramitar', methods=['POST'])
+def admin_tramitar_repuesto(repuesto_id):
+    datos_compra = request.form.get('datos_compra', '').strip()
+    observaciones = request.form.get('observaciones', '').strip()
+
+    res = db.confirmar_tramite_repuesto(repuesto_id, datos_compra, observaciones)
+    if res.get('success'):
+        flash("Repuesto confirmado en trámite de compra con proveedor.")
+    else:
+        flash(f"Error al confirmar trámite: {res.get('error')}")
+
+    return redirect(url_for('admin_taller'))
+
 
 # --- 6. AUDITOR DE MANTENIMIENTOS ---
 @app.route('/auditor', methods=['GET', 'POST'])

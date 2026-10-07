@@ -20,7 +20,7 @@ from models import (
     Base, Vehiculo, UnidadContratada, RegistroActividad,
     RegistroCombustible, RegistroFluidos, RegistroMantenimiento,
     RegistroPreventivo, SolicitudRepuesto, CronogramaPreventivo, MetadataSync,
-    OrdenTrabajo
+    OrdenTrabajo, AvanceOT, RepuestoOT
 )
 
 # Ruta a la base de datos SQLite persistente
@@ -30,12 +30,13 @@ DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 
-# Habilitar WAL (Write-Ahead Logging) en SQLite para máxima concurrencia y velocidad
+# Configuración de SQLite para compatibilidad total (Windows, Linux, Docker volumes y PythonAnywhere)
 @event.listens_for(engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA journal_mode=DELETE")
     cursor.execute("PRAGMA synchronous=NORMAL")
+    cursor.execute("PRAGMA busy_timeout=10000")
     cursor.close()
 
 SessionLocal = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engine))
@@ -539,6 +540,20 @@ def crear_orden_trabajo(vehiculo_id, motivo_ingreso, sistema_afectado='MECANICA'
             v.diagnostico = f"OT #{nuevo_num}: {motivo_ingreso}"
 
         session.commit()
+        
+        # Registrar primer avance secuencial de ingreso
+        try:
+            primer_avance = AvanceOT(
+                orden_trabajo_id=ot.id,
+                fecha_hora=fecha_ingreso,
+                mecanico=mecanico_asignado or 'Taller',
+                descripcion=f"Ingreso a taller. Motivo: {motivo_ingreso}"
+            )
+            session.add(primer_avance)
+            session.commit()
+        except Exception:
+            pass
+
         return ot.to_dict()
     except Exception as e:
         session.rollback()
@@ -599,6 +614,18 @@ def cerrar_orden_trabajo(ot_id, trabajo_realizado='', km_egreso=''):
         if km_egreso:
             ot.km_egreso = str(km_egreso)
 
+        # Registrar avance final de alta
+        try:
+            avance_cierre = AvanceOT(
+                orden_trabajo_id=ot.id,
+                fecha_hora=fecha_egreso,
+                mecanico=ot.mecanico_asignado or 'Taller',
+                descripcion=f"Alta operativa otorgada. Trabajo final: {trabajo_realizado or 'Reparación completada'}"
+            )
+            session.add(avance_cierre)
+        except Exception:
+            pass
+
         v = session.query(Vehiculo).filter_by(id=ot.vehiculo_id).first()
         if v:
             otra_abierta = session.query(OrdenTrabajo).filter(
@@ -630,8 +657,163 @@ def cerrar_orden_trabajo(ot_id, trabajo_realizado='', km_egreso=''):
     finally:
         session.close()
 
+# --- AVANCES SECUENCIALES ---
+
+def agregar_avance_ot(ot_id, descripcion, mecanico=None):
+    """Registra un avance secuencial con fecha y hora actual oficial (UTC-3)"""
+    init_db()
+    session = get_session()
+    try:
+        ot = session.query(OrdenTrabajo).filter_by(id=ot_id).first()
+        if not ot:
+            return {'success': False, 'error': f"OT con ID {ot_id} no encontrada"}
+
+        fecha_hora = get_arg_time().strftime("%d/%m/%Y %H:%M")
+        mec = mecanico or ot.mecanico_asignado or 'Taller'
+
+        avance = AvanceOT(
+            orden_trabajo_id=ot_id,
+            fecha_hora=fecha_hora,
+            mecanico=mec,
+            descripcion=descripcion
+        )
+        session.add(avance)
+
+        # Actualizar último trabajo registrado en la OT
+        ot.trabajo_realizado = f"[{fecha_hora}] {descripcion} ({mec})"
+
+        session.commit()
+        return {'success': True, 'avance': avance.to_dict()}
+    except Exception as e:
+        session.rollback()
+        return {'success': False, 'error': str(e)}
+    finally:
+        session.close()
+
+def get_avances_ot(ot_id):
+    """Devuelve la cronología ordenada de avances de una orden"""
+    session = get_session()
+    try:
+        avs = session.query(AvanceOT).filter_by(orden_trabajo_id=ot_id).order_by(AvanceOT.id.asc()).all()
+        return [a.to_dict() for a in avs]
+    finally:
+        session.close()
+
+# --- GESTIÓN DE REPUESTOS ENLISTADOS ---
+
+def agregar_repuesto_ot(ot_id, descripcion, cantidad=1, observaciones=''):
+    """El operario en taller solicita un repuesto individual (nace en estado SOLICITADO)"""
+    init_db()
+    session = get_session()
+    try:
+        ot = session.query(OrdenTrabajo).filter_by(id=ot_id).first()
+        if not ot:
+            return {'success': False, 'error': f"OT con ID {ot_id} no encontrada"}
+
+        fecha_solicitud = get_arg_time().strftime("%d/%m/%Y %H:%M")
+        rep = RepuestoOT(
+            orden_trabajo_id=ot_id,
+            descripcion=descripcion,
+            cantidad=int(cantidad) if cantidad else 1,
+            estado='SOLICITADO',
+            fecha_solicitud=fecha_solicitud,
+            observaciones=observaciones or ''
+        )
+        session.add(rep)
+
+        # Poner orden en ESPERANDO_REPUESTO
+        if ot.estado_ot in ['EN_REPARACION', 'LISTO_PARA_ALTA']:
+            ot.estado_ot = 'ESPERANDO_REPUESTO'
+
+        # Actualizar diagnóstico global de la unidad
+        v = session.query(Vehiculo).filter_by(id=ot.vehiculo_id).first()
+        if v:
+            v.diagnostico = f"OT #{ot.numero_ot} (ESPERANDO REPUESTO): {descripcion}"
+
+        session.commit()
+        return {'success': True, 'repuesto': rep.to_dict()}
+    except Exception as e:
+        session.rollback()
+        return {'success': False, 'error': str(e)}
+    finally:
+        session.close()
+
+def confirmar_tramite_repuesto(repuesto_id, datos_compra='', observaciones=''):
+    """El administrativo confirma que el repuesto está en trámite de compra con proveedor"""
+    session = get_session()
+    try:
+        rep = session.query(RepuestoOT).filter_by(id=repuesto_id).first()
+        if not rep:
+            return {'success': False, 'error': f"Repuesto con ID {repuesto_id} no encontrado"}
+
+        rep.estado = 'EN_TRAMITE'
+        rep.fecha_tramite = get_arg_time().strftime("%d/%m/%Y %H:%M")
+        if datos_compra:
+            rep.datos_compra = datos_compra
+        if observaciones:
+            rep.observaciones = observaciones
+
+        session.commit()
+        return {'success': True, 'repuesto': rep.to_dict()}
+    except Exception as e:
+        session.rollback()
+        return {'success': False, 'error': str(e)}
+    finally:
+        session.close()
+
+def confirmar_recepcion_repuesto(repuesto_id, remito='', observaciones=''):
+    """El operario de taller confirma la recepción física del repuesto en galpón"""
+    session = get_session()
+    try:
+        rep = session.query(RepuestoOT).filter_by(id=repuesto_id).first()
+        if not rep:
+            return {'success': False, 'error': f"Repuesto con ID {repuesto_id} no encontrado"}
+
+        fecha_recepcion = get_arg_time().strftime("%d/%m/%Y %H:%M")
+        rep.estado = 'RECIBIDO'
+        rep.fecha_recepcion = fecha_recepcion
+        if remito:
+            rep.remito_recepcion = remito
+        if observaciones:
+            rep.observaciones = observaciones
+
+        session.flush()
+
+        # Comprobar si todos los repuestos de la OT ya fueron recibidos
+        ot = session.query(OrdenTrabajo).filter_by(id=rep.orden_trabajo_id).first()
+        if ot:
+            otros_pendientes = session.query(RepuestoOT).filter(
+                RepuestoOT.orden_trabajo_id == ot.id,
+                RepuestoOT.estado != 'RECIBIDO',
+                RepuestoOT.estado != 'COLOCADO'
+            ).count()
+
+            # Si ya se recibieron todos, la OT vuelve a EN_REPARACION para montaje
+            if otros_pendientes == 0:
+                ot.estado_ot = 'EN_REPARACION'
+                v = session.query(Vehiculo).filter_by(id=ot.vehiculo_id).first()
+                if v:
+                    v.diagnostico = f"OT #{ot.numero_ot} (REPUESTOS RECIBIDOS EN TALLER - EN MONTAJE)"
+
+        session.commit()
+        return {'success': True, 'repuesto': rep.to_dict()}
+    except Exception as e:
+        session.rollback()
+        return {'success': False, 'error': str(e)}
+    finally:
+        session.close()
+
+def get_repuestos_ot(ot_id):
+    """Devuelve los repuestos asociados a una orden de trabajo"""
+    session = get_session()
+    try:
+        reps = session.query(RepuestoOT).filter_by(orden_trabajo_id=ot_id).order_by(RepuestoOT.id.asc()).all()
+        return [r.to_dict() for r in reps]
+    finally:
+        session.close()
+
 def get_ordenes_taller_activas():
-    """Devuelve las órdenes de trabajo activas con datos del vehículo y días de permanencia"""
+    """Devuelve las órdenes de trabajo activas con datos del vehículo, días, avances y repuestos"""
     init_db()
     session = get_session()
     try:
@@ -660,6 +842,7 @@ def get_ordenes_taller_activas():
                 d['foto_url'] = ''
                 d['tipo_vehiculo'] = ''
 
+            # Días en taller
             dias = 0
             if ot.fecha_ingreso:
                 try:
@@ -669,23 +852,118 @@ def get_ordenes_taller_activas():
                 except Exception:
                     dias = 0
             d['dias_en_taller'] = dias
+
+            # Repuestos asociados
+            reps = session.query(RepuestoOT).filter_by(orden_trabajo_id=ot.id).order_by(RepuestoOT.id.asc()).all()
+            d['repuestos'] = [r.to_dict() for r in reps]
+            d['repuestos_pendientes_count'] = sum(1 for r in reps if r.estado != 'RECIBIDO')
+            d['repuestos_completos'] = len(reps) > 0 and d['repuestos_pendientes_count'] == 0
+
+            # Avances asociados
+            avs = session.query(AvanceOT).filter_by(orden_trabajo_id=ot.id).order_by(AvanceOT.id.asc()).all()
+            d['avances'] = [a.to_dict() for a in avs]
+            d['ultimo_avance'] = d['avances'][-1] if d['avances'] else None
+            d['avances_count'] = len(d['avances'])
+
             res.append(d)
 
         return res
     finally:
         session.close()
 
+def get_seguimiento_admin_taller():
+    """
+    Consolida información para el panel administrativo /admin/taller:
+    - OTs activas con tiempos de detención y cronología completa de avances.
+    - Matriz de repuestos solicitados en toda la flota para compras y pañol.
+    """
+    init_db()
+    session = get_session()
+    try:
+        ots = session.query(OrdenTrabajo).filter(OrdenTrabajo.estado_ot != 'CERRADA').order_by(
+            OrdenTrabajo.prioridad.desc(),
+            OrdenTrabajo.id.desc()
+        ).all()
+
+        hoy = get_arg_time().date()
+        ots_data = []
+        for ot in ots:
+            d = ot.to_dict()
+            v = session.query(Vehiculo).filter_by(id=ot.vehiculo_id).first()
+            if v:
+                d['marca'] = v.marca or ''
+                d['modelo'] = v.modelo or ''
+                d['dominio'] = v.dominio or ''
+                d['area'] = v.area or ''
+                d['foto_url'] = v.foto_url or ''
+                d['tipo_vehiculo'] = v.tipo or ''
+            else:
+                d['marca'] = d['modelo'] = d['dominio'] = d['area'] = d['foto_url'] = d['tipo_vehiculo'] = ''
+
+            dias = 0
+            if ot.fecha_ingreso:
+                try:
+                    f_part = ot.fecha_ingreso.split()[0]
+                    dt = datetime.strptime(f_part, "%d/%m/%Y").date()
+                    dias = max(0, (hoy - dt).days)
+                except Exception:
+                    dias = 0
+            d['dias_en_taller'] = dias
+
+            avs = session.query(AvanceOT).filter_by(orden_trabajo_id=ot.id).order_by(AvanceOT.id.asc()).all()
+            d['avances'] = [a.to_dict() for a in avs]
+
+            reps = session.query(RepuestoOT).filter_by(orden_trabajo_id=ot.id).order_by(RepuestoOT.id.asc()).all()
+            d['repuestos'] = [r.to_dict() for r in reps]
+            d['repuestos_pendientes'] = sum(1 for r in reps if r.estado != 'RECIBIDO')
+
+            ots_data.append(d)
+
+        todos_reps = session.query(RepuestoOT).join(OrdenTrabajo).filter(OrdenTrabajo.estado_ot != 'CERRADA').order_by(RepuestoOT.id.desc()).all()
+        repuestos_lista = []
+        for r in todos_reps:
+            rd = r.to_dict()
+            ot_ref = session.query(OrdenTrabajo).filter_by(id=r.orden_trabajo_id).first()
+            if ot_ref:
+                rd['numero_ot'] = ot_ref.numero_ot
+                rd['vehiculo_id'] = ot_ref.vehiculo_id
+                v_ref = session.query(Vehiculo).filter_by(id=ot_ref.vehiculo_id).first()
+                rd['dominio'] = v_ref.dominio if v_ref else ''
+                rd['area'] = v_ref.area if v_ref else ''
+            else:
+                rd['numero_ot'] = rd['vehiculo_id'] = rd['dominio'] = rd['area'] = ''
+            repuestos_lista.append(rd)
+
+        return {
+            'ots': ots_data,
+            'repuestos': repuestos_lista,
+            'total_ots': len(ots_data),
+            'total_repuestos': len(repuestos_lista),
+            'repuestos_solicitados': sum(1 for r in repuestos_lista if r['estado'] == 'SOLICITADO'),
+            'repuestos_en_tramite': sum(1 for r in repuestos_lista if r['estado'] == 'EN_TRAMITE'),
+            'repuestos_recibidos': sum(1 for r in repuestos_lista if r['estado'] == 'RECIBIDO')
+        }
+    finally:
+        session.close()
+
 def get_ot_by_id(ot_id):
-    """Devuelve una OT por su identificador primario"""
+    """Devuelve una OT por su identificador primario con avances y repuestos"""
     session = get_session()
     try:
         ot = session.query(OrdenTrabajo).filter_by(id=ot_id).first()
-        return ot.to_dict() if ot else None
+        if not ot:
+            return None
+        d = ot.to_dict()
+        avs = session.query(AvanceOT).filter_by(orden_trabajo_id=ot.id).order_by(AvanceOT.id.asc()).all()
+        d['avances'] = [a.to_dict() for a in avs]
+        reps = session.query(RepuestoOT).filter_by(orden_trabajo_id=ot.id).order_by(RepuestoOT.id.asc()).all()
+        d['repuestos'] = [r.to_dict() for r in reps]
+        return d
     finally:
         session.close()
 
 def get_ot_activa_vehiculo(vehiculo_id):
-    """Devuelve la OT activa de un vehículo si se encuentra en taller"""
+    """Devuelve la OT activa de un vehículo con avances y repuestos"""
     session = get_session()
     try:
         ot = session.query(OrdenTrabajo).filter(
@@ -704,19 +982,32 @@ def get_ot_activa_vehiculo(vehiculo_id):
                 except Exception:
                     dias = 0
             d['dias_en_taller'] = dias
+            avs = session.query(AvanceOT).filter_by(orden_trabajo_id=ot.id).order_by(AvanceOT.id.asc()).all()
+            d['avances'] = [a.to_dict() for a in avs]
+            reps = session.query(RepuestoOT).filter_by(orden_trabajo_id=ot.id).order_by(RepuestoOT.id.asc()).all()
+            d['repuestos'] = [r.to_dict() for r in reps]
             return d
         return None
     finally:
         session.close()
 
 def get_historial_ot_vehiculo(vehiculo_id):
-    """Devuelve todas las órdenes históricas de un vehículo"""
+    """Devuelve todas las órdenes históricas de un vehículo con sus avances y repuestos"""
     session = get_session()
     try:
         ots = session.query(OrdenTrabajo).filter_by(vehiculo_id=vehiculo_id).order_by(OrdenTrabajo.id.desc()).all()
-        return [ot.to_dict() for ot in ots]
+        res = []
+        for ot in ots:
+            d = ot.to_dict()
+            avs = session.query(AvanceOT).filter_by(orden_trabajo_id=ot.id).order_by(AvanceOT.id.asc()).all()
+            d['avances'] = [a.to_dict() for a in avs]
+            reps = session.query(RepuestoOT).filter_by(orden_trabajo_id=ot.id).order_by(RepuestoOT.id.asc()).all()
+            d['repuestos'] = [r.to_dict() for r in reps]
+            res.append(d)
+        return res
     finally:
         session.close()
+
 
 
 # ==============================================================================

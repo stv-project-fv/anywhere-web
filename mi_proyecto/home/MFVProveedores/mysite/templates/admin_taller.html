@@ -1,107 +1,466 @@
 {% extends "base.html" %}
 
-{% block title %}Gestión de Taller - Administración{% endblock %}
+{% block title %}Seguimiento de Taller - Administración y Compras{% endblock %}
+
+{% block head %}
+<style>
+    .admin-nav-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 15px;
+        margin-bottom: 25px;
+        padding-bottom: 20px;
+        border-bottom: 2px solid #ddd;
+    }
+    .btn-tab-toggle {
+        border: 2px solid #333;
+        background: #fff;
+        color: #333;
+        font-weight: 800;
+        font-size: 13px;
+        text-transform: uppercase;
+        padding: 10px 20px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .btn-tab-toggle.active, .btn-tab-toggle:hover {
+        background: #333;
+        color: #fff;
+    }
+    .repuesto-table-admin {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 13px;
+        background: #fff;
+        border: 2px solid #000;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    .repuesto-table-admin th {
+        background: #2d3748;
+        color: white;
+        padding: 12px 14px;
+        text-align: left;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .repuesto-table-admin td {
+        padding: 12px 14px;
+        border-bottom: 1px solid #eee;
+        vertical-align: middle;
+    }
+    .badge-repuesto-status {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+    .st-solicitado { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+    .st-tramite { background: #cce5ff; color: #004085; border: 1px solid #b8daff; }
+    .st-recibido { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+
+    .btn-action-admin {
+        background: #0284c7;
+        color: white;
+        border: 1px solid #0369a1;
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-block;
+    }
+    .btn-action-admin:hover {
+        background: #0369a1;
+    }
+
+    /* MODAL */
+    .modal-overlay {
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.65);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        backdrop-filter: blur(4px);
+    }
+    .modal-box {
+        background: #fff;
+        border: 3px solid #000;
+        border-radius: 12px;
+        width: 90%;
+        max-width: 580px;
+        padding: 25px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    }
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 2px solid #eee;
+        padding-bottom: 12px;
+        margin-bottom: 20px;
+    }
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 24px;
+        font-weight: 900;
+        cursor: pointer;
+        color: #666;
+    }
+    .form-group {
+        margin-bottom: 16px;
+    }
+    .form-label {
+        display: block;
+        font-weight: 800;
+        font-size: 13px;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+        color: #222;
+    }
+    .form-control {
+        width: 100%;
+        padding: 10px 12px;
+        border: 2px solid #333;
+        border-radius: 6px;
+        font-size: 14px;
+        box-sizing: border-box;
+    }
+    .btn-modal-submit {
+        width: 100%;
+        padding: 14px;
+        background: var(--primary);
+        color: #fff;
+        border: 2px solid #000;
+        border-radius: 8px;
+        font-size: 15px;
+        font-weight: 900;
+        text-transform: uppercase;
+        cursor: pointer;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="banner banner-panel"></div>
 
-<div class="container" style="max-width:1400px;">
+<div class="container" style="max-width:1300px;">
     <div class="content-padding">
-        <div class="admin-header">
+
+        <!-- CABECERA DE ADMINISTRACIÓN -->
+        <div class="admin-nav-bar">
             <div>
-                <h1 style="margin:0; color:var(--primary);">GESTIÓN DE TALLER</h1>
-                <a href="/" style="color:#666; text-decoration:none; font-size:14px;">⬅ Volver al Panel Principal</a>
-            </div>
-            <div style="text-align:right;">
-                <div style="font-weight:bold; color:var(--danger); font-size:20px;">{{ lista_final|length }} UNIDADES EN ATENCIÓN</div>
-                <div style="font-size:12px; color:#555;">
-                    <span style="color:var(--success)">● {{ c_activas }} Activas</span> |
-                    <span style="color:var(--danger)">● {{ c_inactivas }} Inactivas</span>
+                <h1 style="margin:0; font-size:26px; color:#2d3748; font-weight:900; letter-spacing:-0.5px;">
+                    SEGUIMIENTO Y GESTIÓN DE TALLER
+                </h1>
+                <div style="font-size:13px; color:#666; font-weight:700; margin-top:4px;">
+                    ADMINISTRACIÓN, SUPERVISIÓN DE FLOTA Y COMPRAS DE REPUESTOS
                 </div>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                <a href="/taller" class="btn-action" style="padding:12px 18px; background:var(--primary); font-size:13px; font-weight:900; border-radius:6px;">
+                    IR AL PANEL DE OPERARIO (TALLER)
+                </a>
+                <a href="/" class="btn-action" style="padding:12px 18px; background:#4a5568; font-size:13px; font-weight:800; border-radius:6px;">
+                    PANEL GENERAL
+                </a>
             </div>
         </div>
 
-        <div class="admin-grid">
-            <div>
-                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #ccc; padding-bottom:10px; margin-bottom:15px;">
-                    <h3 style="margin:0; color:#444;">🚜 PARQUE EN ATENCIÓN</h3>
-                    <input type="text" id="filterIzq" onkeyup="filterDivs('izq', 'filterIzq')" placeholder="🔍 Buscar..." class="search-bar" style="width:150px; margin:0;">
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div style="background:#e8f5e9; border:2px solid #2e7d32; color:#1b5e20; padding:12px 18px; border-radius:8px; margin-bottom:20px; font-weight:800; font-size:14px;">
+                    {% for m in messages %}
+                        <div>{{ m }}</div>
+                    {% endfor %}
                 </div>
-                <div id="container-izq">
-                {% for u in lista_final %}
-                    {% set is_bad = 'inactiv' in u['ESTADO'].lower() or 'reparaci' in u['ESTADO'].lower() %}
-                    {% set color_estado = CONF.COLOR_ROJO if is_bad else CONF.COLOR_VERDE %}
+            {% endif %}
+        {% endwith %}
 
-                    <div class="taller-card search-item">
-                        <div class="taller-bar" style="background-color: {{ color_estado }};"></div>
-                        <div class="taller-id">{{ u['ID'] }}</div>
-                        <div class="taller-info">
-                            <div class="taller-type">{{ u['TIPO'] }}</div>
-                            <div class="taller-model">{{ u['MARCA'] }} {{ u['MODELO'] }}</div>
-                            <div class="taller-status" style="color: {{ color_estado }};">{{ u['ESTADO'] }}</div>
-                        </div>
-                        <div class="taller-actions">
-                            <a href="/historial/mantenimiento/{{ u['ID'] }}" target="_blank" class="btn-historial-admin">
-                                HISTORIAL ➜
-                            </a>
-                        </div>
-                    </div>
-                {% endfor %}
-                </div>
+        <!-- MÉTRICAS DE SEGUIMIENTO -->
+        <div class="stats-row">
+            <div class="stat-box" style="border-left:5px solid #2d3748;">
+                <span class="stat-val" style="color:#2d3748;">{{ total_ots }}</span>
+                <span style="font-size:11px; font-weight:800; text-transform:uppercase; color:#666;">Unidades Detenidas</span>
             </div>
+            <div class="stat-box" style="border-left:5px solid #ffc107;">
+                <span class="stat-val" style="color:#d39e00;">{{ repuestos_solicitados }}</span>
+                <span style="font-size:11px; font-weight:800; text-transform:uppercase; color:#666;">Repuestos a Gestionar</span>
+            </div>
+            <div class="stat-box" style="border-left:5px solid #0284c7;">
+                <span class="stat-val" style="color:#0284c7;">{{ repuestos_en_tramite }}</span>
+                <span style="font-size:11px; font-weight:800; text-transform:uppercase; color:#666;">En Trámite de Compra</span>
+            </div>
+            <div class="stat-box" style="border-left:5px solid #28a745;">
+                <span class="stat-val" style="color:#28a745;">{{ repuestos_recibidos }}</span>
+                <span style="font-size:11px; font-weight:800; text-transform:uppercase; color:#666;">Recibidos en Taller</span>
+            </div>
+        </div>
 
-            <div style="background:#fffbf0; padding:15px; border-radius:10px; border:1px solid #ffeeba;">
-                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #e0c070; padding-bottom:10px; margin-bottom:15px;">
-                    <h3 style="margin:0; color:#856404;">📦 GESTIÓN DE SOLICITUDES</h3>
-                    <input type="text" id="filterDer" onkeyup="filterDivs('der', 'filterDer')" placeholder="🔍 Buscar..." class="search-bar" style="width:150px; margin:0;">
-                </div>
-                <div id="container-der">
-                {% for u in lista_final %}
-                    {% if u['STATUS_DATA'] %}
-                    <div class="search-item" style="background:white; padding:15px; border-radius:8px; margin-bottom:15px; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
-                        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                            <span style="font-weight:bold;">{{ u['ID'] }}</span>
-                            {% if u['STATUS_DATA']['ESTADO'] == 'PENDIENTE' %}
-                                <span style="background:var(--danger); color:white; padding:2px 6px; border-radius:4px; font-size:10px;">PENDIENTE</span>
-                            {% elif u['STATUS_DATA']['ESTADO'] == 'PEDIDO' %}
-                                <span style="background:var(--secondary); color:white; padding:2px 6px; border-radius:4px; font-size:10px;">PEDIDO</span>
-                            {% elif u['STATUS_DATA']['ESTADO'] == 'DISPONIBLE' %}
-                                <span style="background:var(--success); color:white; padding:2px 6px; border-radius:4px; font-size:10px;">DISPONIBLE</span>
+        <!-- SELECTOR DE SECCIONES (TABS) -->
+        <div style="display:flex; gap:12px; margin-bottom:20px; border-bottom:2px solid #eee; padding-bottom:12px;">
+            <button id="btnTabRepuestos" class="btn-tab-toggle active" onclick="mostrarTab('repuestos')">
+                GESTIÓN DE COMPRAS Y REPUESTOS ({{ total_repuestos }})
+            </button>
+            <button id="btnTabFlota" class="btn-tab-toggle" onclick="mostrarTab('flota')">
+                MONITOREO DE UNIDADES Y AVANCES ({{ total_ots }})
+            </button>
+        </div>
+
+        <!-- SECCIÓN 1: GESTIÓN DE COMPRAS Y REPUESTOS -->
+        <div id="seccionRepuestos">
+            <div style="overflow-x:auto;">
+                {% if repuestos %}
+                    <table class="repuesto-table-admin">
+                        <thead>
+                            <tr>
+                                <th>UNIDAD / DOMINIO</th>
+                                <th>N° OT</th>
+                                <th>REPUESTO REQUERIDO</th>
+                                <th style="text-align:center;">CANT.</th>
+                                <th>SOLICITADO EL</th>
+                                <th>ESTADO</th>
+                                <th>DATOS DE COMPRA</th>
+                                <th>RECEPCIÓN EN GALPÓN</th>
+                                <th style="text-align:center;">ACCIÓN</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in repuestos %}
+                                <tr>
+                                    <td>
+                                        <a href="/ficha/{{ r.vehiculo_id }}" target="_blank" style="color:#000; font-weight:900; font-family:'Arial Black', sans-serif; font-size:14px; text-decoration:none;">
+                                            {{ r.vehiculo_id }}
+                                        </a>
+                                        {% if r.dominio %}
+                                            <div style="font-size:11px; color:#555; font-weight:700;">{{ r.dominio }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span style="font-weight:800; font-size:12px; color:#333;">{{ r.numero_ot }}</span>
+                                    </td>
+                                    <td>
+                                        <div style="font-weight:800; color:#111;">{{ r.descripcion }}</div>
+                                        {% if r.observaciones %}
+                                            <div style="font-size:11px; color:#666;">Obs: {{ r.observaciones }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td style="text-align:center; font-weight:800;">
+                                        {{ r.cantidad }}
+                                    </td>
+                                    <td style="font-size:12px; color:#555; font-weight:700;">
+                                        {{ r.fecha_solicitud }}
+                                    </td>
+                                    <td>
+                                        {% if r.estado == 'SOLICITADO' %}
+                                            <span class="badge-repuesto-status st-solicitado">SOLICITADO</span>
+                                        {% elif r.estado == 'EN_TRAMITE' %}
+                                            <span class="badge-repuesto-status st-tramite">EN TRÁMITE</span>
+                                        {% elif r.estado == 'RECIBIDO' %}
+                                            <span class="badge-repuesto-status st-recibido">RECIBIDO EN TALLER</span>
+                                        {% endif %}
+                                    </td>
+                                    <td style="font-size:12px;">
+                                        {% if r.estado == 'SOLICITADO' %}
+                                            <span style="color:#999; font-style:italic;">Pendiente de trámite</span>
+                                        {% else %}
+                                            <div style="font-weight:700; color:#004085;">{{ r.datos_compra or 'En gestión' }}</div>
+                                            <div style="font-size:10px; color:#666;">{{ r.fecha_tramite }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td style="font-size:12px;">
+                                        {% if r.estado == 'RECIBIDO' %}
+                                            <div style="font-weight:800; color:#155724;">RECIBIDO</div>
+                                            <div style="font-size:11px; color:#333;">Remito: {{ r.remito_recepcion or 'S/D' }}</div>
+                                            <div style="font-size:10px; color:#777;">{{ r.fecha_recepcion }}</div>
+                                        {% else %}
+                                            <span style="color:#999; font-style:italic;">Aguardando entrega</span>
+                                        {% endif %}
+                                    </td>
+                                    <td style="text-align:center;">
+                                        {% if r.estado == 'SOLICITADO' %}
+                                            <button onclick="abrirModalTramitar('{{ r.id }}', '{{ r.descripcion }}', '{{ r.numero_ot }}', '{{ r.vehiculo_id }}')" class="btn-action-admin">
+                                                CONFIRMAR TRÁMITE
+                                            </button>
+                                        {% elif r.estado == 'EN_TRAMITE' %}
+                                            <span style="font-size:11px; font-weight:800; color:#0284c7;">EN COMPRA</span>
+                                        {% else %}
+                                            <span style="font-size:11px; font-weight:800; color:#28a745;">ENTREGADO</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <div style="padding:50px 20px; text-align:center; background:#fff; border:2px dashed #ccc; border-radius:10px; color:#555;">
+                        <h3 style="margin:0 0 6px 0; font-size:18px; font-weight:800; text-transform:uppercase;">No hay solicitudes de repuestos pendientes</h3>
+                        <p style="margin:0; font-size:13px; color:#777;">Todas las órdenes en taller cuentan con piezas disponibles o no han solicitado componentes.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- SECCIÓN 2: MONITOREO DE UNIDADES Y AVANCES -->
+        <div id="seccionFlota" style="display:none;">
+            {% if ots %}
+                {% for ot in ots %}
+                    <div style="background:white; border:2px solid #000; border-radius:10px; padding:18px; margin-bottom:15px; box-shadow:0 3px 0 rgba(0,0,0,0.1);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; border-bottom:1px solid #eee; padding-bottom:12px; margin-bottom:12px;">
+                            <div style="display:flex; align-items:center; gap:15px;">
+                                <div style="font-family:'Arial Black', sans-serif; font-size:24px; color:#000;">
+                                    {{ ot.vehiculo_id }}
+                                </div>
+                                <div>
+                                    <div style="font-weight:900; font-size:14px; text-transform:uppercase;">
+                                        {{ ot.tipo_vehiculo }} {{ ot.marca }} {{ ot.modelo }} ({{ ot.dominio }})
+                                    </div>
+                                    <div style="font-size:12px; color:#666; font-weight:700;">
+                                        ÁREA: {{ ot.area }} | N° ORDEN: {{ ot.numero_ot }} | INGRESO: {{ ot.fecha_ingreso }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style="display:flex; gap:8px; align-items:center;">
+                                {% if ot.dias_en_taller >= 5 %}
+                                    <span style="background:#ffebee; color:#c62828; border:1px solid #c62828; padding:4px 10px; border-radius:4px; font-weight:800; font-size:11px;">
+                                        {{ ot.dias_en_taller }} DÍAS DETENIDO (CRÍTICO)
+                                    </span>
+                                {% else %}
+                                    <span style="background:#f5f5f5; color:#333; border:1px solid #ccc; padding:4px 10px; border-radius:4px; font-weight:800; font-size:11px;">
+                                        {{ ot.dias_en_taller }} DÍAS EN TALLER
+                                    </span>
+                                {% endif %}
+
+                                <span style="background:#e8f5e9; color:#2e7d32; border:1px solid #2e7d32; padding:4px 10px; border-radius:4px; font-weight:800; font-size:11px;">
+                                    {{ ot.estado_ot }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div style="font-size:13px; margin-bottom:12px;">
+                            <strong>FALLA REPORTADA:</strong> {{ ot.motivo_ingreso }}
+                            {% if ot.mecanico_asignado %} | <strong>MECÁNICO ASIGNADO:</strong> {{ ot.mecanico_asignado }}{% endif %}
+                        </div>
+
+                        <!-- LÍNEA DE TIEMPO DE AVANCES SECUENCIALES -->
+                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:12px;">
+                            <div style="font-size:12px; font-weight:800; text-transform:uppercase; color:#475569; margin-bottom:8px;">
+                                Cronología de Avances Secuenciales ({{ ot.avances|length }} registros):
+                            </div>
+                            {% if ot.avances %}
+                                {% for av in ot.avances %}
+                                    <div style="padding:6px 10px; border-left:3px solid #0284c7; background:#fff; margin-bottom:6px; font-size:12px; border-radius:2px;">
+                                        <div style="color:#64748b; font-weight:700; font-size:11px;">
+                                            [{{ av.fecha_hora }}] Mecánico: {{ av.mecanico }}
+                                        </div>
+                                        <div style="color:#0f172a; font-weight:600; margin-top:2px;">
+                                            {{ av.descripcion }}
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div style="color:#94a3b8; font-size:12px; font-style:italic;">
+                                    Sin avances registrados aún.
+                                </div>
                             {% endif %}
                         </div>
-                        <div style="font-size:12px; color:#555; background:#f9f9f9; padding:8px; border-radius:4px; margin-bottom:10px;">
-                            {{ u['STATUS_DATA']['NOTA'] }}
-                            <div style="font-size:10px; color:#999; margin-top:4px; text-align:right;">{{ u['STATUS_DATA']['FECHA_UPDATE'] }}</div>
-                        </div>
-                        <form method="POST">
-                            <input type="hidden" name="id_vehiculo" value="{{ u['ID'] }}">
-                            <input type="text" name="nota_admin" placeholder="Nota interna..." class="search-bar" style="margin-bottom:8px;">
-                            <div style="display:flex; gap:5px;">
-                                <button type="submit" name="accion_admin" value="MARCAR_PEDIDO" class="btn-action" style="background:var(--secondary); border:none; flex:1;">🟡 Pedido</button>
-                                <button type="submit" name="accion_admin" value="MARCAR_DISPONIBLE" class="btn-action" style="background:var(--success); border:none; flex:1;">🟢 Llegó</button>
-                                <button type="submit" name="accion_admin" value="BORRAR" class="btn-action" style="background:#999; border:none; width:30px;">✖</button>
-                            </div>
-                        </form>
                     </div>
-                    {% endif %}
                 {% endfor %}
+            {% else %}
+                <div style="padding:50px 20px; text-align:center; background:#fff; border:2px dashed #ccc; border-radius:10px; color:#555;">
+                    <h3 style="margin:0 0 6px 0; font-size:18px; font-weight:800; text-transform:uppercase;">No hay unidades en taller</h3>
                 </div>
-            </div>
+            {% endif %}
         </div>
+
     </div>
 </div>
+
+<!-- MODAL: CONFIRMAR TRÁMITE DE COMPRA (ADMINISTRATIVO) -->
+<div id="modalTramitar" class="modal-overlay">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3 style="margin:0; font-size:18px; font-weight:900; color:#0284c7;">
+                CONFIRMAR TRÁMITE DE COMPRA DE REPUESTO
+            </h3>
+            <button class="modal-close" onclick="cerrarModales()">&times;</button>
+        </div>
+        <form id="formTramitar" method="POST" action="">
+            <div style="background:#eff6ff; border:1px solid #bfdbfe; padding:12px; border-radius:6px; margin-bottom:15px;">
+                <div style="font-size:14px; font-weight:800; color:#1e40af;" id="tramitarPieza"></div>
+                <div style="font-size:12px; color:#555; margin-top:2px;" id="tramitarContexto"></div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Datos de Compra / Proveedor / N° Expediente:</label>
+                <input type="text" name="datos_compra" class="form-control" placeholder="Ej: OC #1042 / Proveedor Rodamientos Norte" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Observaciones o Fecha Estimada de Entrega (Opcional):</label>
+                <textarea name="observaciones" rows="2" class="form-control" placeholder="Ej: Entrega pactada para el viernes en galpón"></textarea>
+            </div>
+
+            <p style="font-size:12px; color:#555; margin-bottom:15px;">
+                Al confirmar, el repuesto pasará al estado <strong>EN TRÁMITE DE COMPRA</strong> y los mecánicos verán en el taller que la pieza ya fue gestionada.
+            </p>
+
+            <button type="submit" class="btn-modal-submit" style="background:#0284c7;">
+                CONFIRMAR TRÁMITE DE COMPRA
+            </button>
+        </form>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
-function filterDivs(containerId, inputId) {
-    var filter = document.getElementById(inputId).value.toUpperCase();
-    var items = document.getElementById('container-' + containerId).getElementsByClassName('search-item');
-    for (var i = 0; i < items.length; i++) {
-        var txt = items[i].textContent || items[i].innerText;
-        items[i].style.display = txt.toUpperCase().indexOf(filter) > -1 ? "" : "none";
+    function mostrarTab(tab) {
+        if (tab === 'repuestos') {
+            document.getElementById('seccionRepuestos').style.display = 'block';
+            document.getElementById('seccionFlota').style.display = 'none';
+            document.getElementById('btnTabRepuestos').classList.add('active');
+            document.getElementById('btnTabFlota').classList.remove('active');
+        } else {
+            document.getElementById('seccionRepuestos').style.display = 'none';
+            document.getElementById('seccionFlota').style.display = 'block';
+            document.getElementById('btnTabFlota').classList.add('active');
+            document.getElementById('btnTabRepuestos').classList.remove('active');
+        }
     }
-}
+
+    function abrirModalTramitar(repuestoId, descripcion, ot, unidad) {
+        document.getElementById('tramitarPieza').innerText = descripcion;
+        document.getElementById('tramitarContexto').innerText = 'Orden de Trabajo: ' + ot + ' | Unidad: ' + unidad;
+        document.getElementById('formTramitar').action = '/admin/repuesto/' + repuestoId + '/tramitar';
+        document.getElementById('modalTramitar').style.display = 'flex';
+    }
+
+    function cerrarModales() {
+        document.querySelectorAll('.modal-overlay').forEach(function(m) {
+            m.style.display = 'none';
+        });
+    }
+
+    window.onclick = function(event) {
+        if (event.target.classList.contains('modal-overlay')) {
+            cerrarModales();
+        }
+    };
 </script>
 {% endblock %}
-
