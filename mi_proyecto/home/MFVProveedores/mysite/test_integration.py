@@ -1,5 +1,8 @@
 import sys
 import os
+import sqlite3
+import tempfile
+import atexit
 
 # Forzar encoding UTF-8 en stdout de Windows
 if sys.stdout.encoding != 'utf-8':
@@ -9,11 +12,40 @@ if sys.stdout.encoding != 'utf-8':
         pass
 
 # Asegurar path
-sys.path.insert(0, os.path.abspath("mi_proyecto/home/MFVProveedores/mysite"))
+MYSITE_DIR = os.path.dirname(os.path.abspath(__file__))
+if MYSITE_DIR not in sys.path:
+    sys.path.insert(0, MYSITE_DIR)
+
+# Aislar base de datos de prueba para no mutar flota.db de producción local
+_TEMP_TEST_DB = None
+if not os.environ.get('FLOTA_DB_PATH'):
+    _fd, _TEMP_TEST_DB = tempfile.mkstemp(prefix='flota_test_', suffix='.db')
+    os.close(_fd)
+    _prod_db = os.path.join(MYSITE_DIR, 'flota.db')
+    if os.path.exists(_prod_db):
+        _src = sqlite3.connect(_prod_db)
+        _dst = sqlite3.connect(_TEMP_TEST_DB)
+        _src.backup(_dst)
+        _dst.close()
+        _src.close()
+    os.environ['FLOTA_DB_PATH'] = _TEMP_TEST_DB
 
 from flask_app import app
 import db_service as db
 from models import OrdenTrabajo, Vehiculo, MetadataSync, AvanceOT, RepuestoOT, RegistroMantenimiento
+
+def _cleanup_temp_db():
+    global _TEMP_TEST_DB
+    if _TEMP_TEST_DB and os.path.exists(_TEMP_TEST_DB):
+        try:
+            db.SessionLocal.remove()
+            db.engine.dispose()
+            os.remove(_TEMP_TEST_DB)
+        except Exception:
+            pass
+        _TEMP_TEST_DB = None
+
+atexit.register(_cleanup_temp_db)
 
 def run_tests():
     print("=== INICIANDO PRUEBAS DEL SISTEMA: TALLER OPERARIO, SEGUIMIENTO ADMIN Y REPUESTOS ===")
@@ -335,4 +367,7 @@ def run_tests():
     print("\n=== TODAS LAS PRUEBAS COMPLETADAS CON ÉXITO (100% OK) ===")
 
 if __name__ == '__main__':
-    run_tests()
+    try:
+        run_tests()
+    finally:
+        _cleanup_temp_db()

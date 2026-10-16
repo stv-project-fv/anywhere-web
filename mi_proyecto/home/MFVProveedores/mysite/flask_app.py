@@ -4,7 +4,7 @@ import csv
 import json
 import requests
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from PIL import Image
 import qrcode
@@ -34,7 +34,7 @@ if not loaded:
 # --- LÓGICA HORARIA ARGENTINA ---
 def get_arg_time():
     """Retorna la fecha y hora actual en Argentina (UTC-3)"""
-    return datetime.utcnow() - timedelta(hours=3)
+    return datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=3)
 
 def get_fecha_str():
     return get_arg_time().strftime("%d/%m/%Y")
@@ -83,15 +83,20 @@ CONF = {
     "COLOR_VERDE": "#28a745",
 }
 
+PUBLIC_CONF = {k: v for k, v in CONF.items() if k not in ('PASSWORD_ADMIN', 'PASSWORD_PANEL', 'SECRET_KEY')}
+
+def _is_authenticated():
+    return bool(session.get('panel_logged_in') or session.get('admin_logged_in'))
+
 app = Flask(__name__)
 app.secret_key = CONF['SECRET_KEY']
 cache = Cache(app, config={'CACHE_TYPE': 'SimpleCache', 'CACHE_DEFAULT_TIMEOUT': 60})
 
-# Inyección global de configuración y funciones a las plantillas Jinja2
+# Inyección global de configuración pública y funciones a las plantillas Jinja2
 @app.context_processor
 def inject_globals():
     return {
-        'CONF': CONF,
+        'CONF': PUBLIC_CONF,
         'get_fecha_str': get_fecha_str,
         'get_hora_full_str': get_hora_full_str
     }
@@ -301,6 +306,42 @@ def taller_cerrar_ot(ot_id):
 
     return redirect(url_for('taller'))
 
+@app.route('/taller/preventivo/registrar', methods=['POST'])
+def taller_registrar_preventivo():
+    vid = request.form.get('vehiculo_id', '').strip()
+    tipo = request.form.get('tipo_service', 'SERVICE / PREVENTIVO').strip()
+    responsable = request.form.get('responsable', '').strip() or 'Taller'
+    km = request.form.get('kilometraje', '').strip()
+    observaciones = request.form.get('observaciones', '').strip()
+    items = request.form.getlist('items_service')
+
+    if not vid:
+        flash("Debe seleccionar una unidad para registrar el service preventivo.")
+        return redirect(url_for('taller'))
+
+    partes_detalle = []
+    if items:
+        partes_detalle.append("Ítems: " + ", ".join(items))
+    if km:
+        partes_detalle.append(f"KM/Hs: {km}")
+    if observaciones:
+        partes_detalle.append(f"Obs: {observaciones}")
+    detalle_final = " | ".join(partes_detalle) if partes_detalle else "Service preventivo realizado en taller"
+
+    res = db.record_preventive(
+        fecha=get_arg_time().strftime("%d/%m/%Y %H:%M"),
+        vehiculo_id=vid,
+        tipo=tipo,
+        responsable=responsable,
+        detalle=detalle_final
+    )
+    if isinstance(res, dict) and not res.get('success', True):
+        flash(f"Error al registrar service preventivo: {res.get('error')}")
+    else:
+        flash(f"Service preventivo ({tipo}) registrado con éxito para la unidad {vid}.")
+
+    return redirect(url_for('taller'))
+
 
 # --- 3. VISUALIZACIÓN DE HISTORIALES ---
 @app.route('/historial/<tipo>/<id_vehiculo>')
@@ -434,6 +475,8 @@ def generate_qr(id_vehiculo):
 # --- 5. GESTIÓN Y SEGUIMIENTO DE TALLER (ADMINISTRACIÓN) ---
 @app.route('/admin/taller')
 def admin_taller():
+    if not _is_authenticated():
+        return redirect(url_for('index'))
     seguimiento = db.get_seguimiento_admin_taller()
     return render_template(
         'admin_taller.html',
@@ -448,6 +491,8 @@ def admin_taller():
 
 @app.route('/admin/repuesto/<int:repuesto_id>/tramitar', methods=['POST'])
 def admin_tramitar_repuesto(repuesto_id):
+    if not _is_authenticated():
+        return redirect(url_for('index'))
     datos_compra = request.form.get('datos_compra', '').strip()
     observaciones = request.form.get('observaciones', '').strip()
 
@@ -458,39 +503,6 @@ def admin_tramitar_repuesto(repuesto_id):
         flash(f"Error al confirmar trámite: {res.get('error')}")
 
     return redirect(url_for('admin_taller'))
-
-
-# --- 6. AUDITOR DE MANTENIMIENTOS ---
-@app.route('/auditor', methods=['GET', 'POST'])
-def auditor():
-    if request.method == 'POST' and 'nfc_service' in request.form:
-        v = find_vehicle_by_key(request.form['nfc_service'])
-        if v: return redirect(url_for('auditoria_service', id_vehiculo=v['ID']))
-        else: flash("❌ Llave no reconocida para iniciar service.")
-
-    agenda = db.get_all_cronogramas()
-    return render_template('auditor.html', agenda=agenda)
-
-@app.route('/auditor/service/<id_vehiculo>', methods=['GET', 'POST'])
-def auditoria_service(id_vehiculo):
-    v = find_vehicle_by_id(id_vehiculo)
-    if not v:
-        flash("Unidad no encontrada")
-        return redirect(url_for('auditor'))
-
-    if request.method == 'POST':
-        detalles = f"REVISIÓN {request.form.get('tipo_revision')}. Obs: {request.form.get('observaciones')}"
-        db.record_preventive(
-            get_fecha_str(),
-            id_vehiculo,
-            request.form.get('tipo_revision'),
-            'Auditor',
-            detalles
-        )
-        flash("✅ Service registrado correctamente")
-        return redirect(url_for('auditor'))
-
-    return render_template('auditoria_service.html', v=v)
 
 
 # --- 8. RECORTADOR INTELIGENTE DE PDF ---
@@ -526,6 +538,8 @@ def informe_arbol():
 # --- 10. PLANILLA DE GESTIÓN Y EDICIÓN EN LÍNEA ---
 @app.route('/admin/planilla')
 def admin_planilla():
+    if not _is_authenticated():
+        return redirect(url_for('index'))
     datos = get_fleet_data()
     total = len(datos)
     activos = sum(1 for v in datos if 'inactiv' not in v.get('ESTADO','').lower() and 'reparaci' not in v.get('ESTADO','').lower() and 'irrecuperable' not in v.get('ESTADO','').lower())
@@ -546,6 +560,8 @@ def admin_planilla():
 # --- 11. API DE SINCRONIZACIÓN Y EDICIÓN ---
 @app.route('/api/sincronizar_sheets', methods=['GET', 'POST'])
 def api_sincronizar_sheets():
+    if not _is_authenticated():
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
     res = db.sincronizar_desde_google_sheets(
         CONF["URL_INFORME_ARBOL"],
         CONF["URL_INFORME_ARBOL_CONTRATADOS"]
@@ -556,6 +572,8 @@ def api_sincronizar_sheets():
 
 @app.route('/api/vehiculo/actualizar', methods=['POST'])
 def api_actualizar_vehiculo():
+    if not _is_authenticated():
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
     data = request.get_json(silent=True) or {}
     vid = data.get('id')
     campo = data.get('campo')
@@ -568,6 +586,8 @@ def api_actualizar_vehiculo():
 
 @app.route('/admin/exportar/excel')
 def admin_exportar_excel():
+    if not _is_authenticated():
+        return redirect(url_for('index'))
     excel_stream = db.export_fleet_to_excel()
     fecha_nombre = get_arg_time().strftime("%Y%m%d_%H%M")
     return send_file(

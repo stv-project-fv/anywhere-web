@@ -4,14 +4,14 @@ import csv
 import json
 import requests
 import openpyxl
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, scoped_session
 
 # --- LÓGICA HORARIA BUENOS AIRES, ARGENTINA (UTC-3) ---
 def get_arg_time():
     """Retorna la fecha y hora actual en Argentina (UTC-3)"""
-    return datetime.utcnow() - timedelta(hours=3)
+    return datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=3)
 
 def get_hora_full_str():
     return get_arg_time().strftime("%d/%m/%Y %H:%M:%S")
@@ -23,9 +23,9 @@ from models import (
     OrdenTrabajo, AvanceOT, RepuestoOT
 )
 
-# Ruta a la base de datos SQLite persistente
+# Ruta a la base de datos SQLite persistente (configurable vía FLOTA_DB_PATH para tests aislados)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, 'flota.db')
+DB_PATH = os.getenv('FLOTA_DB_PATH', os.path.join(BASE_DIR, 'flota.db'))
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
@@ -192,7 +192,7 @@ def sincronizar_desde_google_sheets(url_aux2, url_aux3):
                 vehiculo.fecha_alta = fecha_alta
             
             vehiculo.especificaciones = especificaciones
-            vehiculo.actualizado_en = datetime.utcnow()
+            vehiculo.actualizado_en = get_arg_time()
             filas_aux2_count += 1
 
         # 3. SINCRONIZAR AUX 3 (Contratados)
@@ -424,11 +424,29 @@ def record_maintenance(fecha, vehiculo_id, tipo, detalle):
         session.close()
 
 def record_preventive(fecha, vehiculo_id, tipo, responsable, detalle):
+    init_db()
     session = get_session()
     try:
-        rec = RegistroPreventivo(fecha=fecha, vehiculo_id=vehiculo_id, tipo=tipo, responsable=responsable, detalle=detalle)
+        fecha_str = fecha or get_hora_full_str()
+        rec = RegistroPreventivo(
+            fecha=fecha_str,
+            vehiculo_id=vehiculo_id,
+            tipo=tipo or 'SERVICE / PREVENTIVO',
+            responsable=responsable or 'Taller',
+            detalle=detalle or ''
+        )
         session.add(rec)
+        pendientes = session.query(CronogramaPreventivo).filter_by(
+            vehiculo_id=vehiculo_id,
+            estado='PENDIENTE'
+        ).all()
+        for p in pendientes:
+            p.estado = 'REALIZADO'
         session.commit()
+        return {'success': True, 'preventivo': rec.to_dict()}
+    except Exception as e:
+        session.rollback()
+        return {'success': False, 'error': str(e)}
     finally:
         session.close()
 
@@ -628,6 +646,26 @@ def cerrar_orden_trabajo(ot_id, trabajo_realizado='', km_egreso=''):
         except Exception:
             pass
 
+        # Si la OT corresponde a un SERVICE / PREVENTIVO, asentar en historial_preventivos (/historial/cronograma/<id>)
+        if (ot.sistema_afectado or '').strip().upper() == 'SERVICE':
+            det_prev = f"OT #{ot.numero_ot} | {ot.trabajo_realizado or ot.motivo_ingreso}"
+            if ot.km_egreso:
+                det_prev += f" | KM: {ot.km_egreso}"
+            rec_prev = RegistroPreventivo(
+                fecha=fecha_egreso,
+                vehiculo_id=ot.vehiculo_id,
+                tipo='SERVICE / PREVENTIVO (OT)',
+                responsable=ot.mecanico_asignado or 'Taller',
+                detalle=det_prev
+            )
+            session.add(rec_prev)
+            pendientes = session.query(CronogramaPreventivo).filter_by(
+                vehiculo_id=ot.vehiculo_id,
+                estado='PENDIENTE'
+            ).all()
+            for p in pendientes:
+                p.estado = 'REALIZADO'
+
         v = session.query(Vehiculo).filter_by(id=ot.vehiculo_id).first()
         if v:
             otra_abierta = session.query(OrdenTrabajo).filter(
@@ -736,6 +774,8 @@ def confirmar_tramite_repuesto(repuesto_id, datos_compra='', observaciones=''):
         rep = session.query(RepuestoOT).filter_by(id=repuesto_id).first()
         if not rep:
             return {'success': False, 'error': f"Repuesto con ID {repuesto_id} no encontrado"}
+        if rep.estado == 'RECIBIDO':
+            return {'success': False, 'error': 'El repuesto ya fue recibido físicamente en taller'}
 
         rep.estado = 'EN_TRAMITE'
         rep.fecha_tramite = get_arg_time().strftime("%d/%m/%Y %H:%M")
@@ -1206,7 +1246,7 @@ def update_vehicle_cell(vehiculo_id, campo, valor):
                 esp.pop(campo, None)
             v.especificaciones = esp
 
-        v.actualizado_en = datetime.utcnow()
+        v.actualizado_en = get_arg_time()
         session.commit()
         return {'success': True, 'id': vehiculo_id, 'campo': campo, 'valor': val_str}
     except Exception as e:

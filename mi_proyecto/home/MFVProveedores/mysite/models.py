@@ -1,9 +1,12 @@
 import json
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import Column, String, Integer, Float, Boolean, Text, DateTime, JSON, ForeignKey
 from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
+
+def _arg_now():
+    return datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=3)
 
 class Vehiculo(Base):
     __tablename__ = 'vehiculos'
@@ -31,8 +34,8 @@ class Vehiculo(Base):
     # Campo NoSQL (Documento JSON embebido para especificaciones técnicas variables por tipo)
     especificaciones = Column(JSON, default=dict)
 
-    creado_en = Column(DateTime, default=datetime.utcnow)
-    actualizado_en = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    creado_en = Column(DateTime, default=_arg_now)
+    actualizado_en = Column(DateTime, default=_arg_now, onupdate=_arg_now)
 
     def to_dict(self):
         d = {

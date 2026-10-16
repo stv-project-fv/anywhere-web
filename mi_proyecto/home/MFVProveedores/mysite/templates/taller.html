@@ -273,6 +273,9 @@
                 </div>
             </div>
             <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                <button onclick="abrirModalPreventivo()" class="btn-ingreso-taller" style="background:#0056b3;">
+                    🛠️ CARGAR SERVICE PREVENTIVO
+                </button>
                 <button onclick="abrirModalIngreso()" class="btn-ingreso-taller">
                     + INGRESAR UNIDAD
                 </button>
@@ -675,6 +678,83 @@
     </div>
 </div>
 
+<!-- MODAL 7: CARGAR SERVICE PREVENTIVO DIRECTO -->
+<div id="modalPreventivo" class="modal-overlay">
+    <div class="modal-box" style="border-color:#0056b3;">
+        <div class="modal-header">
+            <h3 style="margin:0; font-size:18px; font-weight:900; color:#0056b3;">
+                REGISTRAR SERVICE PREVENTIVO DE UNIDAD
+            </h3>
+            <button class="modal-close" onclick="cerrarModales()">&times;</button>
+        </div>
+        <form method="POST" action="/taller/preventivo/registrar">
+            <div class="form-group">
+                <label class="form-label">Seleccionar Unidad de la Flota:</label>
+                <select name="vehiculo_id" class="form-control" required style="font-weight:700;">
+                    <option value="">-- Seleccionar Unidad (ID - Dominio - Modelo) --</option>
+                    {% for v in flota %}
+                        <option value="{{ v.ID }}">{{ v.ID }} - {{ v.DOMINIO }} ({{ v.TIPO }} {{ v.MARCA }} {{ v.MODELO }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Tipo de Service Preventivo:</label>
+                <select name="tipo_service" class="form-control" style="font-weight:700;">
+                    <option value="SERVICE COMPLETO">SERVICE COMPLETO (ACEITE + TODOS LOS FILTROS)</option>
+                    <option value="CAMBIO DE ACEITE Y FILTRO">CAMBIO DE ACEITE Y FILTRO DE ACEITE</option>
+                    <option value="CONTROL DE FLUIDOS Y ENGRASE">CONTROL DE FLUIDOS, CORREAS Y ENGRASE</option>
+                    <option value="PREVENTIVO PROGRAMADO">REVISIÓN PREVENTIVA PROGRAMADA</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Ítems Verificados / Reemplazados:</label>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; background:#f8f9fa; padding:10px; border:1px solid #ccc; border-radius:6px; font-size:13px; font-weight:700;">
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                        <input type="checkbox" name="items_service" value="Aceite Motor" checked> Aceite de Motor
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                        <input type="checkbox" name="items_service" value="Filtro Aceite" checked> Filtro de Aceite
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                        <input type="checkbox" name="items_service" value="Filtro Aire"> Filtro de Aire
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                        <input type="checkbox" name="items_service" value="Filtro Combustible"> Filtro de Combustible
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                        <input type="checkbox" name="items_service" value="Nivel Fluidos/Hidráulico"> Fluidos / Hidráulico
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                        <input type="checkbox" name="items_service" value="Correas y Frenos"> Correas / Frenos / Engrase
+                    </label>
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div class="form-group">
+                    <label class="form-label">Mecánico / Responsable:</label>
+                    <input type="text" name="responsable" class="form-control" placeholder="Ej: J. Pérez" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Kilometraje / Horómetro:</label>
+                    <input type="text" name="kilometraje" class="form-control" placeholder="Ej: 150000 km">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Observaciones / Especificaciones de Insumos:</label>
+                <textarea name="observaciones" rows="2" class="form-control" placeholder="Ej: Aceite 15W40 sintético, próximo service a los 160.000 km..."></textarea>
+            </div>
+
+            <button type="submit" class="btn-modal-submit" style="background:#0056b3;">
+                GUARDAR SERVICE EN CRONOGRAMA PREVENTIVO
+            </button>
+        </form>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -691,6 +771,10 @@
 
     function abrirModalIngreso() {
         document.getElementById('modalIngreso').style.display = 'flex';
+    }
+
+    function abrirModalPreventivo() {
+        document.getElementById('modalPreventivo').style.display = 'flex';
     }
 
     function abrirModalAvance(id, ot, unidad) {

@@ -35,7 +35,10 @@ SOLO PARA ANALIZAR/
 # IDEs y sistema
 .idea/
 .vscode/
-.agents/
+.agents/*
+!.agents/skills/
+!.agents/hooks/
+!.agents/hooks.json
 .gemini/
 .DS_Store
 Thumbs.db

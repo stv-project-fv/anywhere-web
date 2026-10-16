@@ -28,3 +28,9 @@ ENV/
 .gemini/
 .idea/
 .vscode/
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.bak
+SOLO PARA ANALIZAR/

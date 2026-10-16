@@ -40,24 +40,27 @@ Este documento reúne los comandos esenciales y avanzados para gestionar, depura
 
 ---
 
-## 💾 4. Gestión de Archivos y Datos Locales (CSVs / Backups)
+## 💾 4. Gestión de Base de Datos SQLite y Backups (`flota.db`)
 
-Dado que el directorio local `./mi_proyecto/home/MFVProveedores/mysite` está montado en `/app`, los archivos generados (como `estado_repuestos.csv` o `cronograma_preventivo.csv`) se guardan directamente en tu máquina local.
+Dado que el directorio local `./mi_proyecto/home/MFVProveedores/mysite` está montado en `/app`, la base de datos activa `flota.db` persiste directamente en tu máquina local.
 
 | Acción | Comando |
 |---|---|
-| **Copiar un archivo desde el contenedor a la máquina local** | `docker cp panel_flota_app:/app/estado_repuestos.csv ./backup_repuestos.csv` |
-| **Copiar un archivo desde la máquina local al contenedor** | `docker cp ./archivo.csv panel_flota_app:/app/archivo.csv` |
+| **Crear backup atómico de `flota.db` (Host)** | `python -c "import sqlite3; s=sqlite3.connect('mi_proyecto/home/MFVProveedores/mysite/flota.db'); d=sqlite3.connect('mi_proyecto/home/MFVProveedores/mysite/flota.db.bak'); s.backup(d); d.close(); s.close()"` |
+| **Verificar integridad y cantidad de unidades** | `python -c "import sqlite3; c=sqlite3.connect('mi_proyecto/home/MFVProveedores/mysite/flota.db'); print(c.execute('PRAGMA integrity_check').fetchall(), c.execute('SELECT COUNT(*) FROM vehiculos').fetchone()[0]); c.close()"` |
+| **Ejecutar suite de integración (en DB temporal aislada)** | `python mi_proyecto/home/MFVProveedores/mysite/test_integration.py` |
 
 ---
 
 ## 🧹 5. Mantenimiento y Limpieza de Docker
 
+> **Precaución:** Los comandos `prune` afectan recursos de Docker a nivel global en tu máquina. Requieren confirmación humana explícita antes de ejecutarse.
+
 | Acción | Comando | Descripción |
 |---|---|---|
 | **Listar imágenes descargadas/creadas** | `docker images` | Muestra el tamaño y tags de las imágenes en el sistema. |
 | **Eliminar imágenes huérfanas (dangling)** | `docker image prune` | Libera espacio eliminando capas intermedias sin usar. |
-| **Limpieza general del sistema Docker** | `docker system prune -f` | Elimina contenedores detenidos, redes sin uso y cachés huérfanas. |
+| **Limpieza general del sistema Docker (con confirmación)** | `docker system prune` | Elimina contenedores detenidos, redes sin uso y cachés huérfanas. |
 | **Reconstrucción limpia sin usar caché** | `docker compose build --no-cache` | Útil si necesitas descargar dependencias completamente desde cero. |
 
 ---
