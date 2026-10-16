@@ -43,10 +43,12 @@ class Vehiculo(Base):
             'MODELO': self.modelo or '',
             'DOMINIO': self.dominio or '',
             'AÑO': self.anio or '',
+            'ANIO': self.anio or '',
             'AREA': self.area or '',
             'ÁREA': self.area or '',
             'ESTADO': self.estado or 'ACTIVO',
             'DIAGNÓSTICO': self.diagnostico or '',
+            'DIAGNOSTICO': self.diagnostico or '',
             'RESUMEN': self.resumen or '',
             'PATRIMONIO': self.patrimonio or '',
             'MOTOR': self.motor or '',
@@ -225,6 +227,17 @@ class MetadataSync(Base):
     filas_aux3 = Column(Integer, default=0)
     estado_sync = Column(String(100), default='PENDIENTE')
     mensaje = Column(Text, default='')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'ultima_sincronizacion': self.ultima_sincronizacion or '',
+            'filas_aux2': self.filas_aux2 or 0,
+            'filas_aux3': self.filas_aux3 or 0,
+            'estado_sync': self.estado_sync or 'PENDIENTE',
+            'estado': self.estado_sync or 'PENDIENTE',
+            'mensaje': self.mensaje or ''
+        }
 
 class OrdenTrabajo(Base):
     __tablename__ = 'ordenes_trabajo'

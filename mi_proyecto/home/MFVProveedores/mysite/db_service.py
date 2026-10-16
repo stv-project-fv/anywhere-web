@@ -334,7 +334,7 @@ def update_status_repuesto(id_vehiculo, nuevo_estado, nota="", tipo_registro="RE
     session = get_session()
     try:
         if not fecha_str:
-            fecha_str = datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S")
+            fecha_str = get_hora_full_str()
 
         if nuevo_estado is None:
             # Eliminar solicitudes activas
@@ -463,6 +463,8 @@ def get_history_records(tipo, vehiculo_id):
                     'EGRESO': ot.fecha_egreso or '-'
                 })
             for m in mants:
+                if m.detalle and m.detalle.startswith('OT #'):
+                    continue  # Evitar duplicar OTs ya procesadas desde ordenes_trabajo
                 res.append({
                     'FECHA': m.fecha,
                     'OT / TIPO': 'HISTÓRICO',
@@ -637,17 +639,6 @@ def cerrar_orden_trabajo(ot_id, trabajo_realizado='', km_egreso=''):
             if not otra_abierta:
                 v.estado = 'ACTIVO'
                 v.diagnostico = ''
-
-        detalle_audit = f"OT #{ot.numero_ot} - {ot.sistema_afectado}: {ot.trabajo_realizado or ot.motivo_ingreso}"
-        if ot.repuestos_detalle:
-            detalle_audit += f" | Repuestos: {ot.repuestos_detalle}"
-        rec = RegistroMantenimiento(
-            fecha=fecha_egreso,
-            vehiculo_id=ot.vehiculo_id,
-            tipo=ot.sistema_afectado,
-            detalle=detalle_audit
-        )
-        session.add(rec)
 
         session.commit()
         return {'success': True, 'ot': ot.to_dict()}
@@ -947,13 +938,36 @@ def get_seguimiento_admin_taller():
         session.close()
 
 def get_ot_by_id(ot_id):
-    """Devuelve una OT por su identificador primario con avances y repuestos"""
+    """Devuelve una OT por su identificador primario con avances y repuestos enriquecida con datos del vehículo"""
     session = get_session()
     try:
         ot = session.query(OrdenTrabajo).filter_by(id=ot_id).first()
         if not ot:
             return None
         d = ot.to_dict()
+
+        v = session.query(Vehiculo).filter_by(id=ot.vehiculo_id).first()
+        if v:
+            d['marca'] = v.marca or ''
+            d['modelo'] = v.modelo or ''
+            d['dominio'] = v.dominio or ''
+            d['area'] = v.area or ''
+            d['foto_url'] = v.foto_url or ''
+            d['tipo_vehiculo'] = v.tipo or ''
+        else:
+            d['marca'] = d['modelo'] = d['dominio'] = d['area'] = d['foto_url'] = d['tipo_vehiculo'] = ''
+
+        hoy = get_arg_time().date()
+        dias = 0
+        if ot.fecha_ingreso:
+            try:
+                f_part = ot.fecha_ingreso.split()[0]
+                dt = datetime.strptime(f_part, "%d/%m/%Y").date()
+                dias = max(0, (hoy - dt).days)
+            except Exception:
+                dias = 0
+        d['dias_en_taller'] = dias
+
         avs = session.query(AvanceOT).filter_by(orden_trabajo_id=ot.id).order_by(AvanceOT.id.asc()).all()
         d['avances'] = [a.to_dict() for a in avs]
         reps = session.query(RepuestoOT).filter_by(orden_trabajo_id=ot.id).order_by(RepuestoOT.id.asc()).all()
@@ -963,7 +977,7 @@ def get_ot_by_id(ot_id):
         session.close()
 
 def get_ot_activa_vehiculo(vehiculo_id):
-    """Devuelve la OT activa de un vehículo con avances y repuestos"""
+    """Devuelve la OT activa de un vehículo con avances y repuestos enriquecida con datos del vehículo"""
     session = get_session()
     try:
         ot = session.query(OrdenTrabajo).filter(
@@ -972,6 +986,18 @@ def get_ot_activa_vehiculo(vehiculo_id):
         ).first()
         if ot:
             d = ot.to_dict()
+
+            v = session.query(Vehiculo).filter_by(id=vehiculo_id).first()
+            if v:
+                d['marca'] = v.marca or ''
+                d['modelo'] = v.modelo or ''
+                d['dominio'] = v.dominio or ''
+                d['area'] = v.area or ''
+                d['foto_url'] = v.foto_url or ''
+                d['tipo_vehiculo'] = v.tipo or ''
+            else:
+                d['marca'] = d['modelo'] = d['dominio'] = d['area'] = d['foto_url'] = d['tipo_vehiculo'] = ''
+
             hoy = get_arg_time().date()
             dias = 0
             if ot.fecha_ingreso:
@@ -1137,6 +1163,8 @@ def update_vehicle_cell(vehiculo_id, campo, valor):
 
         if campo_norm in ['dominio', 'patente']:
             return {'success': False, 'error': 'El dominio o patente no es editable'}
+        elif campo_norm in ['id', 'unidad']:
+            return {'success': False, 'error': 'El identificador de la unidad no es editable'}
         elif campo_norm in ['estado']:
             v.estado = val_str.upper()
         elif campo_norm in ['diagnostico', 'diagnóstico']:
@@ -1153,6 +1181,22 @@ def update_vehicle_cell(vehiculo_id, campo, valor):
             v.motor = val_str
         elif campo_norm in ['chasis']:
             v.chasis = val_str
+        elif campo_norm in ['marca']:
+            v.marca = val_str.upper()
+        elif campo_norm in ['modelo']:
+            v.modelo = val_str.upper()
+        elif campo_norm in ['anio', 'año', 'ao']:
+            v.anio = val_str
+        elif campo_norm in ['patrimonio']:
+            v.patrimonio = val_str
+        elif campo_norm in ['legajo']:
+            v.legajo = val_str
+        elif campo_norm in ['dni']:
+            v.dni = val_str
+        elif campo_norm in ['fecha_alta']:
+            v.fecha_alta = val_str
+        elif campo_norm in ['foto_url', 'foto']:
+            v.foto_url = val_str
         else:
             # Si es una especificación técnica dinámica NoSQL
             esp = dict(v.especificaciones or {})

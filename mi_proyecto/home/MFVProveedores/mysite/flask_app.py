@@ -351,7 +351,7 @@ def ficha(id_vehiculo):
     specs = vehiculo.get('ESPECIFICACIONES', {})
     priv = {k: vehiculo.get(k, '') for k in CONF['CAMPOS_PRIVADOS'] if vehiculo.get(k, '').strip()}
 
-    is_inactive = 'inactiv' in vehiculo.get('ESTADO','').lower() or 'reparaci' in vehiculo.get('ESTADO','').lower()
+    is_inactive = 'inactiv' in vehiculo.get('ESTADO','').lower() or 'reparaci' in vehiculo.get('ESTADO','').lower() or 'irrecuperable' in vehiculo.get('ESTADO','').lower()
     est_cls = "st-bad" if is_inactive else "st-ok"
     dias = calcular_dias_actividad(vehiculo.get('FECHA_ALTA', ''))
 

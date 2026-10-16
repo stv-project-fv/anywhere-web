@@ -276,12 +276,6 @@
                 <button onclick="abrirModalIngreso()" class="btn-ingreso-taller">
                     + INGRESAR UNIDAD
                 </button>
-                <a href="/admin/taller" class="btn-taller-action" style="padding:12px 16px; background:#4a5568; color:white; border-color:#2d3748;">
-                    SEGUIMIENTO ADMINISTRATIVO
-                </a>
-                <a href="/" class="btn-taller-action" style="padding:12px 16px;">
-                    VOLVER AL PANEL
-                </a>
             </div>
         </div>
 
@@ -401,7 +395,7 @@
 
                                             <div>
                                                 {% if r.estado != 'RECIBIDO' %}
-                                                    <button onclick="abrirModalRecibirRepuesto('{{ r.id }}', '{{ r.descripcion }}', '{{ ot.numero_ot }}', '{{ ot.vehiculo_id }}')" class="btn-recibir-small">
+                                                    <button onclick="abrirModalRecibirRepuesto('{{ r.id }}', '{{ r.descripcion|replace("'", "\\'") }}', '{{ ot.numero_ot }}', '{{ ot.vehiculo_id }}')" class="btn-recibir-small">
                                                         REGISTRAR RECEPCIÓN
                                                     </button>
                                                 {% else %}

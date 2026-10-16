@@ -171,9 +171,6 @@
                 </div>
             </div>
             <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                <a href="/taller" class="btn-action" style="padding:12px 18px; background:var(--primary); font-size:13px; font-weight:900; border-radius:6px;">
-                    IR AL PANEL DE OPERARIO (TALLER)
-                </a>
                 <a href="/" class="btn-action" style="padding:12px 18px; background:#4a5568; font-size:13px; font-weight:800; border-radius:6px;">
                     PANEL GENERAL
                 </a>
@@ -292,7 +289,7 @@
                                     </td>
                                     <td style="text-align:center;">
                                         {% if r.estado == 'SOLICITADO' %}
-                                            <button onclick="abrirModalTramitar('{{ r.id }}', '{{ r.descripcion }}', '{{ r.numero_ot }}', '{{ r.vehiculo_id }}')" class="btn-action-admin">
+                                            <button onclick="abrirModalTramitar('{{ r.id }}', '{{ r.descripcion|replace("'", "\\'") }}', '{{ r.numero_ot }}', '{{ r.vehiculo_id }}')" class="btn-action-admin">
                                                 CONFIRMAR TRÁMITE
                                             </button>
                                         {% elif r.estado == 'EN_TRAMITE' %}

@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.abspath("mi_proyecto/home/MFVProveedores/mysite"))
 
 from flask_app import app
 import db_service as db
-from models import OrdenTrabajo, Vehiculo
+from models import OrdenTrabajo, Vehiculo, MetadataSync, AvanceOT, RepuestoOT, RegistroMantenimiento
 
 def run_tests():
     print("=== INICIANDO PRUEBAS DEL SISTEMA: TALLER OPERARIO, SEGUIMIENTO ADMIN Y REPUESTOS ===")
@@ -45,8 +45,9 @@ def run_tests():
     assert "PLANILLA DE GESTIÓN Y EDICIÓN DE FLOTA" in html
     assert "tabulator-tables" in html
     assert "fleetData" in html
+    assert "EN REPARACIÓN" in html
     assert "/taller" in html
-    print("  ✓ Ruta /admin/planilla renderiza correctamente con enlace a taller.")
+    print("  ✓ Ruta /admin/planilla renderiza correctamente con enlace a taller y estados completos.")
 
     # 3. Test ficha técnica y especificaciones NoSQL
     print("\n3. Probando ruta /ficha/AE-1")
@@ -56,8 +57,24 @@ def run_tests():
     assert "AE-1" in html
     v = db.find_vehicle_by_id('AE-1')
     assert v is not None, "Unidad AE-1 no encontrada en SQLite"
+    assert 'ANIO' in v and 'AÑO' in v, "Falta simetría en alias de año"
+    assert 'DIAGNOSTICO' in v and 'DIAGNÓSTICO' in v, "Falta simetría en alias de diagnóstico"
+
+    # Verificar serialización de MetadataSync
+    m_sync = MetadataSync(id=1, estado_sync='COMPLETADO', ultima_sincronizacion='07/10/2026 15:00:00')
+    m_dict = m_sync.to_dict()
+    assert m_dict['estado_sync'] == 'COMPLETADO'
+    assert m_dict['ultima_sincronizacion'] == '07/10/2026 15:00:00'
+
+    # Verificar badge 'st-bad' cuando el estado es 'irrecuperable'
+    v_orig_estado = v['ESTADO']
+    db.update_vehicle_cell('AE-1', 'estado', 'IRRECUPERABLE')
+    res_irr = client.get('/ficha/AE-1')
+    assert "st-bad" in res_irr.data.decode('utf-8'), "Unidad irrecuperable debe mostrar badge st-bad"
+    db.update_vehicle_cell('AE-1', 'estado', v_orig_estado)
+
     print(f"  Unidad AE-1 encontrada: {v['MARCA']} {v['MODELO']}")
-    print("  ✓ Ficha técnica renderiza correctamente.")
+    print("  ✓ Ficha técnica, alias simétricos, MetadataSync y badge irrecuperable renderizan correctamente.")
 
     # 4. Test informe de árbol
     print("\n4. Probando ruta /informe/arbol")
@@ -69,6 +86,18 @@ def run_tests():
 
     # 5. Test edición en vivo vía API: /api/vehiculo/actualizar
     print("\n5. Probando API /api/vehiculo/actualizar")
+    # Probar bloqueo de identificadores inmutables
+    res_id = client.post('/api/vehiculo/actualizar', json={'id': 'AE-1', 'campo': 'id', 'valor': 'AE-99'})
+    assert res_id.get_json()['success'] is False, "El id no debe ser editable"
+    res_uni = client.post('/api/vehiculo/actualizar', json={'id': 'AE-1', 'campo': 'unidad', 'valor': 'AE-99'})
+    assert res_uni.get_json()['success'] is False, "La unidad no debe ser editable"
+
+    # Probar persistencia de columnas estructurales
+    res_marca = client.post('/api/vehiculo/actualizar', json={'id': 'AE-1', 'campo': 'marca', 'valor': 'hangcha'})
+    assert res_marca.get_json()['success'] is True
+    res_anio = client.post('/api/vehiculo/actualizar', json={'id': 'AE-1', 'campo': 'anio', 'valor': '2023'})
+    assert res_anio.get_json()['success'] is True
+
     test_diag = "Prueba de celda viva"
     res = client.post('/api/vehiculo/actualizar', json={
         'id': 'AE-1',
@@ -78,7 +107,9 @@ def run_tests():
     assert res.status_code == 200
     v_updated = db.find_vehicle_by_id('AE-1')
     assert v_updated['DIAGNÓSTICO'] == test_diag
-    print("  ✓ Celda actualizada y persistida correctamente en SQLite.")
+    assert v_updated['MARCA'] == 'HANGCHA'
+    assert v_updated['ANIO'] == '2023'
+    print("  ✓ Celda actualizada, columnas estructurales mapeadas y bloqueo de ID verificado en SQLite.")
 
     # 6. Test PANEL DE TALLER OPERARIO (/taller) y PANEL ADMIN (/admin/taller)
     print("\n6. Probando paneles separados:")
@@ -87,14 +118,18 @@ def run_tests():
     html_taller = res_taller.data.decode('utf-8')
     assert "PANEL DE TALLER - PISO DE GALPÓN" in html_taller
     assert "INGRESAR UNIDAD" in html_taller
-    print("  ✓ /taller renderiza el panel para operarios de galpón.")
+    assert 'href="/admin/taller"' not in html_taller, "Panel de operario no debe tener link a /admin/taller"
+    assert 'href="/"' not in html_taller, "Panel de operario no debe tener link al panel general /"
+    print("  ✓ /taller renderiza el panel para operarios de galpón (aislado).")
 
     res_admin_taller = client.get('/admin/taller')
     assert res_admin_taller.status_code == 200, f"Error en /admin/taller: {res_admin_taller.status_code}"
     html_admin = res_admin_taller.data.decode('utf-8')
     assert "SEGUIMIENTO Y GESTIÓN DE TALLER" in html_admin
     assert "GESTIÓN DE COMPRAS Y REPUESTOS" in html_admin
-    print("  ✓ /admin/taller renderiza el panel administrativo de seguimiento y compras.")
+    assert 'href="/taller"' not in html_admin, "Panel administrativo no debe tener link a /taller"
+    assert 'href="/"' in html_admin, "Panel administrativo debe conservar acceso al panel general"
+    print("  ✓ /admin/taller renderiza el panel administrativo de seguimiento y compras (aislado).")
 
     # 7. Test CICLO DE VIDA DE ORDEN DE TRABAJO (OT), AVANCES Y REPUESTOS
     print("\n7. Probando ciclo completo de OT con avances secuenciales y repuestos diferenciados:")
@@ -149,13 +184,24 @@ def run_tests():
     assert "Limpieza de cárter" in avances[2]['descripcion']
     print(f"  ✓ Avances secuenciales registrados con fecha, hora y mecánico ({len(avances)} registrados).")
 
-    # c. Operario solicita 2 repuestos por ítem (estado inicial: SOLICITADO)
+    # c. Operario solicita 2 repuestos por ítem (estado inicial: SOLICITADO, incluyendo comillas simples)
     res_rep1 = client.post(f'/taller/ot/{ot_id}/repuesto/solicitar', data={
-        'descripcion': 'Bomba hidráulica de engranajes',
+        'descripcion': "O'ring de 1/2' y bomba hidráulica",
         'cantidad': 1,
         'observaciones': 'Para circuito de levante 12V'
     }, follow_redirects=True)
     assert res_rep1.status_code == 200
+
+    # Verificar escape seguro de comillas simples en templates Jinja2
+    res_admin_taller_check = client.get('/admin/taller')
+    html_at = res_admin_taller_check.data.decode('utf-8')
+    assert "abrirModalTramitar" in html_at
+    assert ("O\\'ring" in html_at or "O\\&#39;ring" in html_at), "Las comillas simples en la descripción del repuesto deben escaparse para JS"
+
+    res_taller_check = client.get('/taller')
+    html_tc = res_taller_check.data.decode('utf-8')
+    assert "abrirModalRecibirRepuesto" in html_tc
+    assert ("O\\'ring" in html_tc or "O\\&#39;ring" in html_tc), "Las comillas simples en el panel taller deben escaparse para JS"
 
     res_rep2 = client.post(f'/taller/ot/{ot_id}/repuesto/solicitar', data={
         'descripcion': 'Junta y kit de retenes de alta presión',
@@ -170,7 +216,7 @@ def run_tests():
     rep2_id = reps[1]['id']
     assert reps[0]['estado'] == 'SOLICITADO'
     assert reps[1]['estado'] == 'SOLICITADO'
-    print(f"  ✓ Operario solicitó 2 repuestos: '{reps[0]['descripcion']}' y '{reps[1]['descripcion']}'.")
+    print(f"  ✓ Operario solicitó 2 repuestos (con escape de comillas simples verificado): '{reps[0]['descripcion']}'.")
 
     # d. Administrativo confirma que el repuesto 1 está EN TRÁMITE DE COMPRA
     res_tramite = client.post(f'/admin/repuesto/{rep1_id}/tramitar', data={
@@ -210,7 +256,11 @@ def run_tests():
     assert reps_check3[1]['estado'] == 'RECIBIDO'
     ot_check_reps = db.get_ot_by_id(ot_id)
     assert ot_check_reps['estado_ot'] == 'EN_REPARACION'
-    print("  ✓ Operario confirmó recepción del repuesto 2: Todos los repuestos recibidos en taller.")
+    assert ot_check_reps['marca'] != '', "get_ot_by_id debe incluir marca del vehículo"
+    assert ot_check_reps['modelo'] != '', "get_ot_by_id debe incluir modelo del vehículo"
+    assert ot_check_reps['dominio'] != '', "get_ot_by_id debe incluir dominio del vehículo"
+    assert 'dias_en_taller' in ot_check_reps, "get_ot_by_id debe incluir dias_en_taller"
+    print("  ✓ Operario confirmó recepción del repuesto 2; get_ot_by_id verificado con contrato enriquecido.")
 
     # g. Alta operativa (Cierre de OT)
     res_cerrar = client.post(f'/taller/ot/{ot_id}/cerrar', data={
@@ -232,7 +282,12 @@ def run_tests():
     html_mant = res_hist_mant.data.decode('utf-8')
     assert "HISTORIAL DE REPARACIONES" in html_mant
     assert ot_num in html_mant
-    print("  ✓ /historial/mantenimiento/AE-1 integra la OT con sus avances y repuestos.")
+
+    # Verificar supresión de duplicados HISTÓRICO para la OT cerrada
+    hist_records = db.get_history_records('AE-1', 'mantenimiento')
+    historicos = [r for r in hist_records if r.get('OT / TIPO') == 'HISTÓRICO' and ot_num in r.get('FALLA / DETALLE', '')]
+    assert len(historicos) == 0, "No debe haber duplicados HISTÓRICO de la OT cerrada"
+    print("  ✓ /historial/mantenimiento/AE-1 integra la OT con sus avances y repuestos sin duplicados.")
 
     res_hist_img = client.get('/historial/imagenes/AE-1')
     assert res_hist_img.status_code == 200
@@ -267,6 +322,15 @@ def run_tests():
     res_patente = client.post('/api/vehiculo/actualizar', json={'id': 'AE-1', 'campo': 'dominio', 'valor': 'BLOQUEO'})
     assert res_patente.get_json().get('success') is False
     print("  ✓ Excel y bloqueo de edición de patente preservados sin regresión.")
+
+    # Limpieza final de datos de prueba en la base de datos
+    session_cleanup = db.get_session()
+    session_cleanup.query(AvanceOT).filter(AvanceOT.orden_trabajo_id == ot_id).delete()
+    session_cleanup.query(RepuestoOT).filter(RepuestoOT.orden_trabajo_id == ot_id).delete()
+    session_cleanup.query(OrdenTrabajo).filter(OrdenTrabajo.id == ot_id).delete()
+    session_cleanup.query(RegistroMantenimiento).filter(RegistroMantenimiento.vehiculo_id == 'AE-1').delete()
+    session_cleanup.commit()
+    session_cleanup.close()
 
     print("\n=== TODAS LAS PRUEBAS COMPLETADAS CON ÉXITO (100% OK) ===")
 
