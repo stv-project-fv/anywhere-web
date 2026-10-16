@@ -398,7 +398,7 @@
 
                                             <div>
                                                 {% if r.estado != 'RECIBIDO' %}
-                                                    <button onclick="abrirModalRecibirRepuesto('{{ r.id }}', '{{ r.descripcion|replace("'", "\\'") }}', '{{ ot.numero_ot }}', '{{ ot.vehiculo_id }}')" class="btn-recibir-small">
+                                                    <button onclick="abrirModalRecibirRepuesto('{{ r.id }}', '{{ r.descripcion|replace("'", "\\'")|replace('"', '&quot;') }}', '{{ ot.numero_ot }}', '{{ ot.vehiculo_id }}')" class="btn-recibir-small">
                                                         REGISTRAR RECEPCIÓN
                                                     </button>
                                                 {% else %}

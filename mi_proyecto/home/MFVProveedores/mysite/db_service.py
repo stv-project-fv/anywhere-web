@@ -1,7 +1,6 @@
 import os
 import io
 import csv
-import json
 import requests
 import openpyxl
 from datetime import datetime, timedelta, timezone
@@ -222,11 +221,15 @@ def sincronizar_desde_google_sheets(url_aux2, url_aux3):
             if not tipo_c or not area_c or tipo_c in ['NAN', 'None', '']:
                 continue
 
-            try: cant_c = int(float(cant_c_raw))
-            except: cant_c = 1
+            try:
+                cant_c = int(float(cant_c_raw))
+            except (ValueError, TypeError):
+                cant_c = 1
 
-            try: cant_p = int(float(cant_p_raw))
-            except: cant_p = 0
+            try:
+                cant_p = int(float(cant_p_raw))
+            except (ValueError, TypeError):
+                cant_p = 0
 
             solo_em = 'SI' in solo_em_raw.upper()
 

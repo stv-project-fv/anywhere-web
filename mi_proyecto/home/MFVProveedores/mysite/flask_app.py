@@ -1,9 +1,7 @@
 import os
 import io
-import csv
 import json
 import requests
-import pandas as pd
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from PIL import Image
@@ -129,7 +127,8 @@ def calcular_dias_actividad(fecha_alta_str):
         alta = datetime.strptime(fecha_alta_str, "%d/%m/%Y")
         dias = (get_arg_time() - alta).days
         return f"{dias} días"
-    except: return "Sin dato"
+    except (ValueError, TypeError):
+        return "Sin dato"
 
 # --- LÓGICA DE ESTADOS Y MANTENIMIENTO ---
 def get_status_repuesto(id_vehiculo):
