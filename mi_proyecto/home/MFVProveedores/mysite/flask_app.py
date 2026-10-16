@@ -203,10 +203,19 @@ def taller():
     esperando_repuesto = sum(1 for o in ots_activas if o.get('estado_ot') == 'ESPERANDO_REPUESTO')
     urgentes = sum(1 for o in ots_activas if o.get('prioridad') == 'URGENTE')
 
+    data_ots = {
+        str(o['id']): {
+            'numero_ot': o.get('numero_ot', ''),
+            'vehiculo_id': o.get('vehiculo_id', ''),
+            'avances': o.get('avances', [])
+        } for o in ots_activas
+    }
+
     return render_template(
         'taller.html',
         ots=ots_activas,
         flota=flota,
+        data_ots=data_ots,
         total=total_en_taller,
         en_reparacion=en_reparacion,
         esperando_repuesto=esperando_repuesto,

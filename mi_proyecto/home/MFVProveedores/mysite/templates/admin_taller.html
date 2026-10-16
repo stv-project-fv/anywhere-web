@@ -289,7 +289,7 @@
                                     </td>
                                     <td style="text-align:center;">
                                         {% if r.estado == 'SOLICITADO' %}
-                                            <button onclick="abrirModalTramitar('{{ r.id }}', '{{ r.descripcion|replace("'", "\\'")|replace('"', '&quot;') }}', '{{ r.numero_ot }}', '{{ r.vehiculo_id }}')" class="btn-action-admin">
+                                            <button onclick="abrirModalTramitar('{{ r.id }}', '{{ r.descripcion|replace("'", "\\'") }}', '{{ r.numero_ot }}', '{{ r.vehiculo_id }}')" class="btn-action-admin">
                                                 CONFIRMAR TRÁMITE
                                             </button>
                                         {% elif r.estado == 'EN_TRAMITE' %}

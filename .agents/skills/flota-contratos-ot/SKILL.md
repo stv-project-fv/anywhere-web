@@ -54,9 +54,9 @@ El proyecto mantiene dos convenciones de nombres de claves según la familia de 
 
 ## 3. Plantillas Jinja2, Tabulator y Escape JavaScript
 
-1. **Escape obligatorio de comillas simples y dobles en eventos `onclick` inline**:
-   - En `templates/taller.html` (`abrirModalRecibirRepuesto`) y `templates/admin_taller.html` (`abrirModalTramitar`), las descripciones de repuestos suelen incluir medidas en pulgadas o apóstrofes (ej. `O'ring`, `1/2"`, `3/4'`).
-   - Siempre interpolar usando `{{ r.descripcion|replace("'", "\\'")|replace('"', '&quot;') }}` para evitar el cierre prematuro del atributo HTML o errores de sintaxis en JavaScript.
+1. **Escape obligatorio de comillas simples en eventos `onclick` inline**:
+   - En `templates/taller.html` (`abrirModalRecibirRepuesto`) y `templates/admin_taller.html` (`abrirModalTramitar`), las descripciones de repuestos suelen incluir medidas en pulgadas o apóstrofes (ej. `O'ring`, `1/2'`).
+   - Siempre interpolar usando `{{ r.descripcion|replace("'", "\\'") }}`.
 
 2. **Selector de `ESTADO` en Tabulator (`templates/admin_planilla.html`)**:
    - Cuando se abre una OT en taller, `crear_orden_trabajo` asigna `v.estado = 'EN REPARACIÓN'` (con tilde).

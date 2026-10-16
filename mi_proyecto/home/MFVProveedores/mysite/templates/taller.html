@@ -398,7 +398,7 @@
 
                                             <div>
                                                 {% if r.estado != 'RECIBIDO' %}
-                                                    <button onclick="abrirModalRecibirRepuesto('{{ r.id }}', '{{ r.descripcion|replace("'", "\\'")|replace('"', '&quot;') }}', '{{ ot.numero_ot }}', '{{ ot.vehiculo_id }}')" class="btn-recibir-small">
+                                                    <button onclick="abrirModalRecibirRepuesto('{{ r.id }}', '{{ r.descripcion|replace("'", "\\'") }}', '{{ ot.numero_ot }}', '{{ ot.vehiculo_id }}')" class="btn-recibir-small">
                                                         REGISTRAR RECEPCIÓN
                                                     </button>
                                                 {% else %}
@@ -758,16 +758,17 @@
 {% endblock %}
 
 {% block scripts %}
+<script id="data-ots" type="application/json">{{ data_ots|tojson }}</script>
 <script>
-    var dataOTs = {
-        {% for ot in ots %}
-            "{{ ot.id }}": {
-                "numero_ot": "{{ ot.numero_ot }}",
-                "vehiculo_id": "{{ ot.vehiculo_id }}",
-                "avances": {{ ot.avances|tojson }}
-            }{% if not loop.last %},{% endif %}
-        {% endfor %}
-    };
+    var dataOTs = {};
+    try {
+        var elData = document.getElementById('data-ots');
+        if (elData && elData.textContent) {
+            dataOTs = JSON.parse(elData.textContent);
+        }
+    } catch (e) {
+        dataOTs = {};
+    }
 
     function abrirModalIngreso() {
         document.getElementById('modalIngreso').style.display = 'flex';
